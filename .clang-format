@@ -1,0 +1,5 @@
+---
+BasedOnStyle: Google
+IndentWidth: 4
+IndentPPDirectives: BeforeHash
+MaxEmptyLinesToKeep: 2
