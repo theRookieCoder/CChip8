@@ -42,8 +42,11 @@ uint8_t ram[4096] = {};
 
 bool dispBuf[64][32] = {};
 
-// uint8_t delayTimer = 0;
-// uint8_t soundTimer = 0;
+// Bit flags
+uint16_t heldKeys = 0;  // TODO
+
+uint8_t delayTimer = 0;
+uint8_t soundTimer = 0;
 
 uint16_t programCounter = 0x200;
 uint16_t indexReg = 0;
@@ -324,8 +327,65 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
         }
 
         case 0xE:
-            if (NN == 0x9E) // TODO: Check for key press
-                programCounter += 2;
+            switch (NN) {
+                case 0x9E:
+                    if ((heldKeys >> VX) & 0b1) programCounter += 2;
+                    break;
+
+                case 0xA1:
+                    if (!((heldKeys >> VX) & 0b1)) programCounter += 2;
+                    break;
+            }
+
+            break;
+
+        case 0xF:
+            switch (NN) {
+                case 0x07:
+                    VX = delayTimer;
+                    break;
+
+                case 0x15:
+                    delayTimer = VX;
+                    break;
+
+                case 0x18:
+                    soundTimer = VX;
+                    break;
+
+                case 0x1E:
+                    indexReg += VX;
+                    if (indexReg > 0x1000) VF = 1;  // Amiga specific behaviour
+                    break;
+
+                case 0x0A:
+                    if (heldKeys == 0)
+                        programCounter -= 2;
+                    else {
+                        uint16_t i = 0;
+                        while (!(heldKeys >> 1 & 0b1)) VX = i;
+                    }
+                    break;
+
+                case 0x29:
+                    indexReg = 0x50 + (VX & 0xF);
+                    break;
+
+                case 0x33:
+                    ram[indexReg + 2] = (VX / 1) % 10;
+                    ram[indexReg + 1] = (VX / 10) % 10;
+                    ram[indexReg + 0] = (VX / 100) % 10;
+                    break;
+
+                case 0x55:
+                    for (int i = 0; i <= X; i++) ram[indexReg + i] = varRegs[i];
+                    break;
+
+                case 0x65:
+                    for (int i = 0; i <= X; i++) varRegs[i] = ram[indexReg + i];
+                    break;
+            }
+
             break;
 
 #if DEBUG
@@ -351,7 +411,9 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
     SDL_RenderPresent(renderer);
 
 
+    // Run at 60Hz
     SDL_Delay(1000.0 / 60.0);
+    delayTimer--;  // Decrement every frame
     return SDL_APP_CONTINUE;
 }
 

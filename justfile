@@ -1,7 +1,7 @@
 default: build-exec
 
-run: build-exec
-    ./cchip8 "ROMs/IBM Logo.ch8"
+run rom: build-exec
+    ./cchip8 ROMs/{{rom}}.ch8
 
 build-exec:
     clang \
