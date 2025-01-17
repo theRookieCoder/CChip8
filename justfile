@@ -1,12 +1,12 @@
-default: build-exec
+default: build
 
-run rom: build-exec
-    ./cchip8 ROMs/{{rom}}.ch8
+run rom debug="true": (build debug)
+    ./cchip8 "ROMs/{{rom}}.ch8"
 
-build-exec:
+build debug="true":
     clang \
         -Wextra \
-        -DDEBUG \
+        -DDEBUG={{debug}} \
         $(pkg-config sdl3 --cflags --libs) \
         main.c \
         -o cchip8

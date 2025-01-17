@@ -2,3 +2,6 @@
 BasedOnStyle: Google
 IndentWidth: 4
 MaxEmptyLinesToKeep: 2
+AlignOperands: AlignAfterOperator
+BinPackArguments: false
+BinPackParameters: false
