@@ -15,10 +15,12 @@ static SDL_Renderer* gp_renderer = NULL;
 // Bit flags
 uint16_t g_heldKeys = 0;
 
+#define OFF_COLOUR 0x8f9185
+#define ON_COLOUR 0x111d2b
 #define DISPLAY_FREQ 60
 uint64_t g_dispTick = 0;
 
-#define EMULATION_FREQ 70
+uint64_t g_emulationFreq = 700;
 uint64_t g_emulTick = 0;
 
 const uint8_t FONT[16 * 5] = {
@@ -96,8 +98,12 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
         return SDL_APP_FAILURE;
     }
 
-    if (!SDL_CreateWindowAndRenderer(
-            APP_NAME, 640, 320, 0, &gp_window, &gp_renderer) ||
+    if (!SDL_CreateWindowAndRenderer(APP_NAME,
+                                     640,
+                                     320,
+                                     SDL_WINDOW_RESIZABLE,
+                                     &gp_window,
+                                     &gp_renderer) ||
         gp_window == NULL || gp_renderer == NULL) {
         SDL_Log("Couldn't create window/renderer: %s", SDL_GetError());
         return SDL_APP_FAILURE;
@@ -116,7 +122,7 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 
 
     // Load font
-    for (int i = 0; i < 16 * 5; i++) g_ram[0x50 + i] = FONT[i];
+    memcpy(&g_ram[0x50], FONT, sizeof FONT);
 
     // Load program ROM
     FILE* rom_file = fopen(argv[1], "rb");
@@ -140,7 +146,7 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
         if (i % 16 == 0) printf("\n%04X: ", i);
         printf("0x%02X ", g_ram[i]);
     }
-    printf("\n");
+    printf("\n\n");
 #endif
 
     return SDL_APP_CONTINUE;
@@ -148,6 +154,13 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 
 SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event) {
     if (event->type == SDL_EVENT_QUIT) return SDL_APP_SUCCESS;
+
+    if (event->type == SDL_EVENT_KEY_DOWN &&
+        event->key.scancode == SDL_SCANCODE_MINUS)
+        g_emulationFreq -= 100;
+    if (event->type == SDL_EVENT_KEY_DOWN &&
+        event->key.scancode == SDL_SCANCODE_EQUALS)
+        g_emulationFreq += 100;
 
     if (event->type == SDL_EVENT_KEY_DOWN) switch (event->key.scancode) {
             case SDL_SCANCODE_1:
@@ -255,10 +268,15 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event) {
 }
 
 SDL_AppResult SDL_AppIterate(void* appstate) {
-    if ((SDL_GetTicks() - g_emulTick) < (1000.0 / EMULATION_FREQ))
+    uint64_t deltaT = SDL_GetTicks() - g_emulTick;
+    if (deltaT < (1000.0 / g_emulationFreq))
         return SDL_APP_CONTINUE;
     else
         g_emulTick = SDL_GetTicks();
+#if DEBUG
+    printf("\x1b[2J\x1b[H");
+    printf("Emulation Frequency: %d Hz\n", g_emulationFreq);
+#endif
 
 
     /* Fetch */
@@ -280,17 +298,13 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
 #define NNN (instruction & 0x0FFF)
 
 // #if DEBUG
-//     printf("Decode:\n");
-//     printf("X   :   %01X\n", X);
-//     printf("Y   :   %01X\n", Y);
-//     printf("N   :   %01X\n", N);
-//     printf("NN  :  %02X\n", NN);
-//     printf("NNN : %03X\n\n", NNN);
+//     // Stop execution once in an infinite loop
+//     if (NNN == g_programCounter - 2) return SDL_APP_SUCCESS;
 // #endif
 
 // Display machine state
 #if DEBUG
-    printf("PC: 0x%04X\n", g_programCounter);
+    printf("PC: 0x%04X\n", g_programCounter - 2);
     printf("Stack:\n");
     for (int i = 0; i < 16; i++) printf("    0x%04X,\n", g_stack[i]);
     printf("SP: %d\n", g_stackIdx);
@@ -313,6 +327,7 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
                     switch (N) {
                         case 0x0:
                             memset(g_dispBuf, 0, sizeof(g_dispBuf));
+                            updateDisp = true;
                             break;
 
                         case 0xE:
@@ -380,40 +395,43 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
                     VX ^= VY;
                     break;
 
-                case 0x4:
-                    if (VX == 255)
-                        VF = 1;
-                    else
-                        VF = 0;
-
-                    VX += VY;
+                case 0x4: {
+                    uint64_t vx = VX;
+                    uint64_t vy = VY;
+                    VX = vx + vy;
+                    VF = (vx + vy > 0xFF) ? 1 : 0;
                     break;
+                }
 
-                case 0x5:
-                    VF = VX > VY;
-                    VX = VX - VY;
+                case 0x5: {
+                    uint64_t vx = VX;
+                    uint64_t vy = VY;
+                    VX = vx - vy;
+                    VF = (vx >= vy) ? 1 : 0;
                     break;
+                }
 
-                case 0x7:
-                    VF = VY > VX;
-                    VX = VY - VX;
+                case 0x7: {
+                    uint64_t vx = VX;
+                    uint64_t vy = VY;
+                    VX = vy - vx;
+                    VF = (vy >= vx) ? 1 : 0;
                     break;
+                }
 
-                case 0x6:
-#if !SCHIP
-                    VX = VY;
-#endif
-                    VF = VX & 0b00000001;
+                case 0x6: {
+                    bool shiftedOut = VX & 0b00000001;
                     VX = VX >> 1;
+                    VF = shiftedOut;
                     break;
+                }
 
-                case 0xE:
-#if !SCHIP
-                    VX = VY;
-#endif
-                    VF = (VX & 0b10000000) >> 7;
+                case 0xE: {
+                    bool shiftedOut = (VX & 0b10000000) >> 7;
                     VX = VX << 1;
+                    VF = shiftedOut;
                     break;
+                }
 #if DEBUG
                 default:
                     printf("Instruction not implemented\n");
@@ -517,7 +535,7 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
                     break;
 
                 case 0x29:
-                    g_indexReg = 0x50 + (VX & 0xF);
+                    g_indexReg = 0x50 + (VX & 0xF) * 5;
                     break;
 
                 case 0x33:
@@ -557,16 +575,26 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
 
     // Update the display when the display buffer is updated or at 60Hz
     if (updateDisp || (SDL_GetTicks() - g_dispTick) > (1000.0 / DISPLAY_FREQ)) {
-        g_dispTick = SDL_GetTicks();
-        g_delayTimer--;  // Decrement every frame
+        if ((SDL_GetTicks() - g_dispTick) > (1000.0 / DISPLAY_FREQ)) {
+            g_dispTick = SDL_GetTicks();
+            g_delayTimer--;
+        }
 
         // Clear the screen to black
-        SDL_SetRenderDrawColor(gp_renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+        SDL_SetRenderDrawColor(gp_renderer,
+                               OFF_COLOUR >> 16 & 0xFF,
+                               OFF_COLOUR >> 8 & 0xFF,
+                               OFF_COLOUR >> 8 & 0xFF,
+                               SDL_ALPHA_OPAQUE);
         SDL_RenderClear(gp_renderer);
 
 
         // Render points
-        SDL_SetRenderDrawColor(gp_renderer, 0xFF, 0xFF, 0xFF, SDL_ALPHA_OPAQUE);
+        SDL_SetRenderDrawColor(gp_renderer,
+                               ON_COLOUR >> 16 & 0xFF,
+                               ON_COLOUR >> 8 & 0xFF,
+                               ON_COLOUR >> 8 & 0xFF,
+                               SDL_ALPHA_OPAQUE);
         for (int y = 0; y < 32; y++)
             for (int x = 0; x < 64; x++)
                 if (g_dispBuf[x][y]) SDL_RenderPoint(gp_renderer, x, y);
