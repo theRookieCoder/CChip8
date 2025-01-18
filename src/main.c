@@ -18,13 +18,11 @@ uint16_t g_heldKeys = 0;
 
 #define OFF_COLOUR 0x8f9185
 #define ON_COLOUR 0x111d2b
-#define DISPLAY_FREQ 60
+bool g_windowResized = false;
 uint64_t g_dispTick = 0;
 
 uint64_t g_emulationFreq = 700;
 uint64_t g_emulTick = 0;
-
-bool g_windowResized = false;
 
 
 SDL_AppResult SDL_AppInit(void** pp_appstate, int argc, char* argv[]) {
@@ -214,33 +212,37 @@ uint16_t heldKeys() { return g_heldKeys; }
 SDL_AppResult SDL_AppIterate(void* p_appstate) {
     MachineState* p_machineState = p_appstate;
 
-    uint64_t deltaT = SDL_GetTicks() - g_emulTick;
-    if (deltaT < (1000.0 / g_emulationFreq))
-        return SDL_APP_CONTINUE;
-    else
+    bool updateDisp = g_windowResized;
+
+
+    /* CORE TICKING */
+
+    // Tick the core if needed
+    if (SDL_GetTicks() - g_emulTick > (1000.0 / g_emulationFreq)) {
         g_emulTick = SDL_GetTicks();
 
 #if DEBUG
-    printf("\x1b[2J\x1b[H");
-    printf("Emulation Frequency: %d Hz\n", g_emulationFreq);
-    printf("Held keys  : %016B\n", g_heldKeys);
-    printf("             FEDCBA9876543210\n\n");
+        printf("\x1b[2J\x1b[H");
+        printf("Emulation frequency: %d Hz\n", g_emulationFreq);
+        printf("Held keys: %016B\n", g_heldKeys);
+        printf("           FEDCBA9876543210\n\n");
 #endif
 
-    bool updateDisp = core_tick(p_machineState, &heldKeys);
-
+        updateDisp = core_tick(p_machineState, &heldKeys);
+    };
 
     // Tick the display and sound timers at 60 Hz
-    if ((SDL_GetTicks() - g_dispTick) > (1000.0 / DISPLAY_FREQ)) {
+    if ((SDL_GetTicks() - g_dispTick) > (1000.0 / 60.0)) {
         g_dispTick = SDL_GetTicks();
         core_timerTick(p_machineState);
     }
 
-    /* Display */
+
+    /* DISPLAY */
 
     // Update the display when the display buffer is updated or window is
     // resized
-    if (updateDisp | g_windowResized) {
+    if (updateDisp) {
         g_windowResized = false;
 
         // Clear the screen to the off colour
@@ -270,7 +272,7 @@ SDL_AppResult SDL_AppIterate(void* p_appstate) {
     return SDL_APP_CONTINUE;
 }
 
-void SDL_AppQuit(void* appstate, SDL_AppResult result) {
+void SDL_AppQuit(void*, SDL_AppResult result) {
 #if DEBUG
     if (result == SDL_APP_FAILURE) SDL_Delay(3000);
 #endif

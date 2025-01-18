@@ -74,7 +74,7 @@ void core_timerTick(MachineState* self) {
 }
 
 bool core_tick(MachineState* self, uint16_t (*heldKeys)()) {
-    /* Fetch */
+    /* FETCH */
     uint16_t instruction = (self->ram[self->programCounter] << 8) +
                            self->ram[self->programCounter + 1];
     self->programCounter += 2;
@@ -83,20 +83,19 @@ bool core_tick(MachineState* self, uint16_t (*heldKeys)()) {
 #endif
 
 
-    /* Decode */
+    /* DECODE */
 #define X ((instruction & 0x0F00) >> 8)
 #define Y ((instruction & 0x00F0) >> 4)
 #define N (instruction & 0x000F)
 #define NN (instruction & 0x00FF)
 #define NNN (instruction & 0x0FFF)
 
-
 // Display machine state
 #if DEBUG
     printf("PC: 0x%04X\n", self->programCounter - 2);
     printf("Stack:\n");
     for (int i = 0; i < 16; i++) printf("    0x%04X,\n", self->stack[i]);
-    printf("SP: %d\n", self->stackIdx);
+    printf("SP: %i\n", self->stackIdx);
     printf("I : 0x%04X\n", self->indexReg);
     printf("V : ");
     for (int i = 0; i < 16; i++) printf("0x%02X, ", self->varRegs[i]);
@@ -106,9 +105,9 @@ bool core_tick(MachineState* self, uint16_t (*heldKeys)()) {
 #endif
 
 
+    /* EXECUTE */
     bool updateDisp = false;
 
-    /* Execute */
     switch ((instruction & 0xF000) >> 12) {
         case 0x0: {
             switch (Y) {
