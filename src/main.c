@@ -1,11 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>  // Only needed for rand()
 
+#include "core.h"
+
 #define SDL_MAIN_USE_CALLBACKS true
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
-#define VERSION "0.0.1"
+#define VERSION "0.1.0"
 #define PROG_NAME "cchip8"
 #define APP_NAME "CChip8"
 
@@ -23,65 +25,6 @@ uint64_t g_dispTick = 0;
 uint64_t g_emulationFreq = 700;
 uint64_t g_emulTick = 0;
 
-const uint8_t FONT[16 * 5] = {
-    0xF0, 0x90, 0x90, 0x90, 0xF0,  // 0
-    0x20, 0x60, 0x20, 0x20, 0x70,  // 1
-    0xF0, 0x10, 0xF0, 0x80, 0xF0,  // 2
-    0xF0, 0x10, 0xF0, 0x10, 0xF0,  // 3
-    0x90, 0x90, 0xF0, 0x10, 0x10,  // 4
-    0xF0, 0x80, 0xF0, 0x10, 0xF0,  // 5
-    0xF0, 0x80, 0xF0, 0x90, 0xF0,  // 6
-    0xF0, 0x10, 0x20, 0x40, 0x40,  // 7
-    0xF0, 0x90, 0xF0, 0x90, 0xF0,  // 8
-    0xF0, 0x90, 0xF0, 0x10, 0xF0,  // 9
-    0xF0, 0x90, 0xF0, 0x90, 0x90,  // A
-    0xE0, 0x90, 0xE0, 0x90, 0xE0,  // B
-    0xF0, 0x80, 0x80, 0x80, 0xF0,  // C
-    0xE0, 0x90, 0x90, 0x90, 0xE0,  // D
-    0xF0, 0x80, 0xF0, 0x80, 0xF0,  // E
-    0xF0, 0x80, 0xF0, 0x80, 0x80   // F
-};
-
-uint16_t g_stack[16] = {};
-uint8_t g_stackIdx = 0;
-
-uint8_t g_ram[4096] = {};
-
-bool g_dispBuf[64][32] = {};
-
-uint8_t g_delayTimer = 0;
-uint8_t g_soundTimer = 0;
-
-uint16_t g_programCounter = 0x200;
-uint16_t g_indexReg = 0;
-
-uint8_t g_varRegs[16] = {};
-#define V0 g_varRegs[0x0]
-#define V1 g_varRegs[0x1]
-#define V2 g_varRegs[0x2]
-#define V3 g_varRegs[0x3]
-#define V4 g_varRegs[0x4]
-#define V5 g_varRegs[0x5]
-#define V6 g_varRegs[0x6]
-#define V7 g_varRegs[0x7]
-#define V8 g_varRegs[0x8]
-#define V9 g_varRegs[0x9]
-#define VA g_varRegs[0xA]
-#define VB g_varRegs[0xB]
-#define VC g_varRegs[0xC]
-#define VD g_varRegs[0xD]
-#define VE g_varRegs[0xE]
-#define VF g_varRegs[0xF]
-#define VX g_varRegs[X]
-#define VY g_varRegs[Y]
-
-void push(uint16_t val) {
-    if (g_stackIdx > 16) printf("Stack overflow!\n");
-
-    g_stack[g_stackIdx++] = val;
-}
-
-uint16_t pop() { return g_stack[--g_stackIdx]; }
 
 SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
     printf("%s version %s\n\n", PROG_NAME, VERSION);
@@ -121,30 +64,25 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
     SDL_RenderPresent(gp_renderer);
 
 
-    // Load font
-    memcpy(&g_ram[0x50], FONT, sizeof FONT);
+    *appstate = core_init();
+    MachineState* machineState = *appstate;
 
     // Load program ROM
-    FILE* rom_file = fopen(argv[1], "rb");
-
-    if (rom_file == NULL) {
+    FILE* romFile = fopen(argv[1], "rb");
+    if (romFile == NULL) {
         printf("ROM file could not be opened\n");
         return SDL_APP_FAILURE;
     }
+    core_loadROM(machineState, romFile);
+    fclose(romFile);
 
-    int i = 0;
-    int written = 0;
-    while ((written = fread(&g_ram[0x200 + i], sizeof *g_ram, 1, rom_file)) > 0)
-        i += written;
-
-    fclose(rom_file);
 
 #if DEBUG
     // Dump RAM to the console
     printf("ADDR: DATA");
     for (int i = 0; i < 0x1000; i++) {
         if (i % 16 == 0) printf("\n%04X: ", i);
-        printf("0x%02X ", g_ram[i]);
+        printf("0x%02X ", machineState->ram[i]);
     }
     printf("\n\n");
 #endif
@@ -267,7 +205,30 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event) {
     return SDL_APP_CONTINUE;
 }
 
+
+#define V0 state->varRegs[0x0]
+#define V1 state->varRegs[0x1]
+#define V2 state->varRegs[0x2]
+#define V3 state->varRegs[0x3]
+#define V4 state->varRegs[0x4]
+#define V5 state->varRegs[0x5]
+#define V6 state->varRegs[0x6]
+#define V7 state->varRegs[0x7]
+#define V8 state->varRegs[0x8]
+#define V9 state->varRegs[0x9]
+#define VA state->varRegs[0xA]
+#define VB state->varRegs[0xB]
+#define VC state->varRegs[0xC]
+#define VD state->varRegs[0xD]
+#define VE state->varRegs[0xE]
+#define VF state->varRegs[0xF]
+#define VX state->varRegs[X]
+#define VY state->varRegs[Y]
+
 SDL_AppResult SDL_AppIterate(void* appstate) {
+    MachineState* state = appstate;
+
+
     uint64_t deltaT = SDL_GetTicks() - g_emulTick;
     if (deltaT < (1000.0 / g_emulationFreq))
         return SDL_APP_CONTINUE;
@@ -280,9 +241,9 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
 
 
     /* Fetch */
-    uint16_t instruction =
-        (g_ram[g_programCounter] << 8) + g_ram[g_programCounter + 1];
-    g_programCounter += 2;
+    uint16_t instruction = (state->ram[state->programCounter] << 8) +
+                           state->ram[state->programCounter + 1];
+    state->programCounter += 2;
 #if DEBUG
     printf("\nInstruction: %04X\n", instruction);
     printf("Held keys  : %016B\n", g_heldKeys);
@@ -299,18 +260,18 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
 
 // #if DEBUG
 //     // Stop execution once in an infinite loop
-//     if (NNN == g_programCounter - 2) return SDL_APP_SUCCESS;
+//     if (NNN == state->programCounter - 2) return SDL_APP_SUCCESS;
 // #endif
 
 // Display machine state
 #if DEBUG
-    printf("PC: 0x%04X\n", g_programCounter - 2);
+    printf("PC: 0x%04X\n", state->programCounter - 2);
     printf("Stack:\n");
-    for (int i = 0; i < 16; i++) printf("    0x%04X,\n", g_stack[i]);
-    printf("SP: %d\n", g_stackIdx);
-    printf("I : 0x%04X\n", g_indexReg);
+    for (int i = 0; i < 16; i++) printf("    0x%04X,\n", state->stack[i]);
+    printf("SP: %d\n", state->stackIdx);
+    printf("I : 0x%04X\n", state->indexReg);
     printf("V : ");
-    for (int i = 0; i < 16; i++) printf("0x%02X, ", g_varRegs[i]);
+    for (int i = 0; i < 16; i++) printf("0x%02X, ", state->varRegs[i]);
     printf("\n");
     printf("VX: 0x%02X\n", VX);
     printf("VY: 0x%02X\n", VY);
@@ -326,12 +287,12 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
                 case 0xE: {
                     switch (N) {
                         case 0x0:
-                            memset(g_dispBuf, 0, sizeof(g_dispBuf));
+                            memset(state->dispBuf, 0, sizeof(state->dispBuf));
                             updateDisp = true;
                             break;
 
                         case 0xE:
-                            g_programCounter = pop();
+                            state->programCounter = pop(state);
                             break;
 #if DEBUG
                         default:
@@ -353,28 +314,28 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
         }
 
         case 0x1:
-            g_programCounter = NNN;
+            state->programCounter = NNN;
             break;
 
         case 0x2:
-            push(g_programCounter);
-            g_programCounter = NNN;
+            push(state, state->programCounter);
+            state->programCounter = NNN;
             break;
 
         case 0x3:
-            if (VX == NN) g_programCounter += 2;
+            if (VX == NN) state->programCounter += 2;
             break;
 
         case 0x4:
-            if (VX != NN) g_programCounter += 2;
+            if (VX != NN) state->programCounter += 2;
             break;
 
         case 0x5:
-            if (VX == VY) g_programCounter += 2;
+            if (VX == VY) state->programCounter += 2;
             break;
 
         case 0x9:
-            if (VX != VY) g_programCounter += 2;
+            if (VX != VY) state->programCounter += 2;
             break;
 
         case 0x8: {
@@ -451,11 +412,11 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
             break;
 
         case 0xA:
-            g_indexReg = NNN;
+            state->indexReg = NNN;
             break;
 
         case 0xB:
-            g_programCounter = NNN + V0;
+            state->programCounter = NNN + V0;
             break;
 
         case 0xC:
@@ -470,12 +431,12 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
 
             for (int i = 0; i < N; i++) {
                 x = VX % 64;
-                uint8_t nthSpriteRow = g_ram[g_indexReg + i];
+                uint8_t nthSpriteRow = state->ram[state->indexReg + i];
                 for (int j = 7; j >= 0; j--) {
                     bool bit = (nthSpriteRow & (1 << j)) >> j;
                     if (bit) {
-                        VF |= g_dispBuf[x][y];
-                        g_dispBuf[x][y] = !g_dispBuf[x][y];
+                        VF |= state->dispBuf[x][y];
+                        state->dispBuf[x][y] = !state->dispBuf[x][y];
                     }
                     x++;
                     if (x > 63) break;
@@ -489,11 +450,11 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
         case 0xE: {
             switch (NN) {
                 case 0x9E:
-                    if ((g_heldKeys >> VX) & 0b1) g_programCounter += 2;
+                    if ((g_heldKeys >> VX) & 0b1) state->programCounter += 2;
                     break;
 
                 case 0xA1:
-                    if (!((g_heldKeys >> VX) & 0b1)) g_programCounter += 2;
+                    if (!((g_heldKeys >> VX) & 0b1)) state->programCounter += 2;
                     break;
 #if DEBUG
                 default:
@@ -508,26 +469,26 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
         case 0xF: {
             switch (NN) {
                 case 0x07:
-                    VX = g_delayTimer;
+                    VX = state->delayTimer;
                     break;
 
                 case 0x15:
-                    g_delayTimer = VX;
+                    state->delayTimer = VX;
                     break;
 
                 case 0x18:
-                    g_soundTimer = VX;
+                    state->soundTimer = VX;
                     break;
 
                 case 0x1E:
-                    g_indexReg += VX;
-                    if (g_indexReg > 0x1000)
+                    state->indexReg += VX;
+                    if (state->indexReg > 0x1000)
                         VF = 1;  // Amiga specific behaviour
                     break;
 
                 case 0x0A:
                     if (g_heldKeys == 0)
-                        g_programCounter -= 2;
+                        state->programCounter -= 2;
                     else
                         for (int i = 0; i < 16; i++)
                             if (g_heldKeys >> i & 0b1) VX = i;
@@ -535,23 +496,23 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
                     break;
 
                 case 0x29:
-                    g_indexReg = 0x50 + (VX & 0xF) * 5;
+                    state->indexReg = 0x50 + (VX & 0xF) * 5;
                     break;
 
                 case 0x33:
-                    g_ram[g_indexReg + 2] = (VX / 1) % 10;
-                    g_ram[g_indexReg + 1] = (VX / 10) % 10;
-                    g_ram[g_indexReg + 0] = (VX / 100) % 10;
+                    state->ram[state->indexReg + 2] = (VX / 1) % 10;
+                    state->ram[state->indexReg + 1] = (VX / 10) % 10;
+                    state->ram[state->indexReg + 0] = (VX / 100) % 10;
                     break;
 
                 case 0x55:
                     for (int i = 0; i <= X; i++)
-                        g_ram[g_indexReg + i] = g_varRegs[i];
+                        state->ram[state->indexReg + i] = state->varRegs[i];
                     break;
 
                 case 0x65:
                     for (int i = 0; i <= X; i++)
-                        g_varRegs[i] = g_ram[g_indexReg + i];
+                        state->varRegs[i] = state->ram[state->indexReg + i];
                     break;
 #if DEBUG
                 default:
@@ -577,7 +538,7 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
     if (updateDisp || (SDL_GetTicks() - g_dispTick) > (1000.0 / DISPLAY_FREQ)) {
         if ((SDL_GetTicks() - g_dispTick) > (1000.0 / DISPLAY_FREQ)) {
             g_dispTick = SDL_GetTicks();
-            g_delayTimer--;
+            state->delayTimer--;
         }
 
         // Clear the screen to black
@@ -597,7 +558,7 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
                                SDL_ALPHA_OPAQUE);
         for (int y = 0; y < 32; y++)
             for (int x = 0; x < 64; x++)
-                if (g_dispBuf[x][y]) SDL_RenderPoint(gp_renderer, x, y);
+                if (state->dispBuf[x][y]) SDL_RenderPoint(gp_renderer, x, y);
 
         // Present the screen
         SDL_RenderPresent(gp_renderer);

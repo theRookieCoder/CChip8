@@ -8,6 +8,6 @@ build debug="true":
         -Wextra \
         -DDEBUG={{debug}} \
         $(pkg-config sdl3 --cflags --libs) \
-        main.c \
+        src/*.c \
         -o cchip8
     chmod +x ./cchip8

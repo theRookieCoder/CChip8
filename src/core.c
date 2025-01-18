@@ -1,0 +1,68 @@
+#include "core.h"
+
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+const uint8_t FONT[16 * 5] = {
+    0xF0, 0x90, 0x90, 0x90, 0xF0,  // 0
+    0x20, 0x60, 0x20, 0x20, 0x70,  // 1
+    0xF0, 0x10, 0xF0, 0x80, 0xF0,  // 2
+    0xF0, 0x10, 0xF0, 0x10, 0xF0,  // 3
+    0x90, 0x90, 0xF0, 0x10, 0x10,  // 4
+    0xF0, 0x80, 0xF0, 0x10, 0xF0,  // 5
+    0xF0, 0x80, 0xF0, 0x90, 0xF0,  // 6
+    0xF0, 0x10, 0x20, 0x40, 0x40,  // 7
+    0xF0, 0x90, 0xF0, 0x90, 0xF0,  // 8
+    0xF0, 0x90, 0xF0, 0x10, 0xF0,  // 9
+    0xF0, 0x90, 0xF0, 0x90, 0x90,  // A
+    0xE0, 0x90, 0xE0, 0x90, 0xE0,  // B
+    0xF0, 0x80, 0x80, 0x80, 0xF0,  // C
+    0xE0, 0x90, 0x90, 0x90, 0xE0,  // D
+    0xF0, 0x80, 0xF0, 0x80, 0xF0,  // E
+    0xF0, 0x80, 0xF0, 0x80, 0x80   // F
+};
+
+#define V0 self->varRegs[0x0]
+#define V1 self->varRegs[0x1]
+#define V2 self->varRegs[0x2]
+#define V3 self->varRegs[0x3]
+#define V4 self->varRegs[0x4]
+#define V5 self->varRegs[0x5]
+#define V6 self->varRegs[0x6]
+#define V7 self->varRegs[0x7]
+#define V8 self->varRegs[0x8]
+#define V9 self->varRegs[0x9]
+#define VA self->varRegs[0xA]
+#define VB self->varRegs[0xB]
+#define VC self->varRegs[0xC]
+#define VD self->varRegs[0xD]
+#define VE self->varRegs[0xE]
+#define VF self->varRegs[0xF]
+#define VX self->varRegs[X]
+#define VY self->varRegs[Y]
+
+void push(MachineState* state, uint16_t val) {
+    if (state->stackIdx > 16) printf("Stack overflow!\n");
+
+    state->stack[state->stackIdx++] = val;
+}
+
+uint16_t pop(MachineState* state) { return state->stack[--state->stackIdx]; }
+
+MachineState* core_init() {
+    static MachineState self = {.programCounter = 0x200};
+
+    memcpy(&self.ram[0x50], FONT, sizeof(FONT));
+
+    return &self;
+}
+
+void core_loadROM(MachineState* self, FILE* romFile) {
+    int i = 0;
+    int written = 0;
+    while ((written = fread(
+                &self->ram[0x200 + i], sizeof *(self->ram), 1, romFile)) > 0)
+        i += written;
+}
