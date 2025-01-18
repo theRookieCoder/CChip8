@@ -24,10 +24,7 @@ typedef struct MachineState {
 
 MachineState* core_init();
 void core_loadROM(MachineState* self, FILE* romFile);
-
-// TEMP
-void push(MachineState* state, uint16_t val);
-uint16_t pop(MachineState* state);
-// END TEMP
+void core_timerTick(MachineState* self);
+bool core_tick(MachineState* self, uint16_t (*heldKeys)());
 
 #endif
