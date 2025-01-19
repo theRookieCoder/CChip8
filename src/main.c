@@ -32,7 +32,7 @@ const SDL_Scancode KEYMAP[16] = {
 };
 
 // How long to buffer a key press in 60 Hz time periods (16.67 ms)
-#define KEY_BUFFER_DUR 1
+#define KEY_BUFFER_DUR 5
 
 // How many 60 Hz time periods a key has been held for
 uint64_t g_keyRepeat[16] = {};
@@ -166,31 +166,31 @@ SDL_AppResult SDL_AppIterate(void* p_appstate) {
     MachineState* p_machineState = p_appstate;
 
     bool updateDisp = g_windowResized;
-
+    uint64_t currentTicks = SDL_GetTicksNS();
 
     /* CORE TICKING */
 
     // Tick the core if needed
     if (g_runEmul &&
-        SDL_GetTicksNS() - g_emulTick > (1000000000 / g_emulationFreq)) {
+        (currentTicks - g_emulTick) > (1000000000 / g_emulationFreq)) {
 #if DEBUG
         printf("\x1b[2J\x1b[H");
         printf("Emulation frequency  : %lu Hz\n", g_emulationFreq);
         printf("Emulation time period: %g ms\n",
-               ((double)SDL_GetTicksNS() - g_emulTick) / 1000000);
+               ((double)currentTicks - g_emulTick) / 1000000);
         printf("Held keys: %016B\n", heldKeys());
         printf("           FEDCBA9876543210\n\n");
 #endif
 
-        g_emulTick = SDL_GetTicksNS();
+        g_emulTick = currentTicks;
 
         updateDisp = core_tick(p_machineState, &heldKeys);
     };
 
     // Tick the delay and sound timers at 60 Hz
     // Increment the key repeat
-    if (g_runEmul && (SDL_GetTicksNS() - g_dispTick) > (1000000000 / 60)) {
-        g_dispTick = SDL_GetTicksNS();
+    if (g_runEmul && (currentTicks - g_dispTick) > (1000000000 / 60)) {
+        g_dispTick = currentTicks;
         core_timerTick(p_machineState);
 
         for (int i = 0; i < 16; i++) {
