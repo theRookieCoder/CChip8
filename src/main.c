@@ -11,6 +11,7 @@
 #define PROG_NAME "cchip8"
 #define APP_NAME "CChip8"
 
+
 const SDL_Scancode KEYMAP[16] = {
     SDL_SCANCODE_X,
     SDL_SCANCODE_1,
@@ -30,11 +31,17 @@ const SDL_Scancode KEYMAP[16] = {
     SDL_SCANCODE_V,
 };
 
+// How long to buffer a key press in 60 Hz time periods (16.67 ms)
+#define KEY_BUFFER_DUR 1
+
+// How many 60 Hz time periods a key has been held for
+uint64_t g_keyRepeat[16] = {};
+// Whether the key has been released but is still being buffered
+bool g_keyReleased[16] = {};
+
+
 static SDL_Window* gp_window = NULL;
 static SDL_Renderer* gp_renderer = NULL;
-
-// Bit flags
-uint16_t g_heldKeys = 0;
 
 #define OFF_COLOUR 0x8f9185
 #define ON_COLOUR 0x111d2b
@@ -134,18 +141,25 @@ SDL_AppResult SDL_AppEvent(void*, SDL_Event* event) {
 
     if (event->type == SDL_EVENT_KEY_DOWN)
         for (int i = 0; i < 16; i++)
-            if (event->key.scancode == KEYMAP[i]) g_heldKeys |= 0b1 << i;
+            if (event->key.scancode == KEYMAP[i]) g_keyRepeat[i]++;
 
     if (event->type == SDL_EVENT_KEY_UP)
         for (int i = 0; i < 16; i++)
-            if (event->key.scancode == KEYMAP[i]) g_heldKeys &= 0b0 << i;
+            if (event->key.scancode == KEYMAP[i]) g_keyReleased[i] = true;
 
 
     return SDL_APP_CONTINUE;
 }
 
 
-uint16_t heldKeys() { return g_heldKeys; }
+uint16_t heldKeys() {
+    uint16_t heldKeys = 0;
+
+    for (int i = 0; i < 16; i++)
+        if (g_keyRepeat[i] > 0) heldKeys |= 0b1 << i;
+
+    return heldKeys;
+}
 
 
 SDL_AppResult SDL_AppIterate(void* p_appstate) {
@@ -164,7 +178,7 @@ SDL_AppResult SDL_AppIterate(void* p_appstate) {
         printf("Emulation frequency  : %lu Hz\n", g_emulationFreq);
         printf("Emulation time period: %g ms\n",
                ((double)SDL_GetTicksNS() - g_emulTick) / 1000000);
-        printf("Held keys: %016B\n", g_heldKeys);
+        printf("Held keys: %016B\n", heldKeys());
         printf("           FEDCBA9876543210\n\n");
 #endif
 
@@ -174,9 +188,20 @@ SDL_AppResult SDL_AppIterate(void* p_appstate) {
     };
 
     // Tick the delay and sound timers at 60 Hz
+    // Increment the key repeat
     if (g_runEmul && (SDL_GetTicksNS() - g_dispTick) > (1000000000 / 60)) {
         g_dispTick = SDL_GetTicksNS();
         core_timerTick(p_machineState);
+
+        for (int i = 0; i < 16; i++) {
+            // If the key has been released and it has exceeded the buffer
+            // duration
+            if (g_keyRepeat[i] > KEY_BUFFER_DUR && g_keyReleased[i]) {
+                g_keyReleased[i] = false;
+                g_keyRepeat[i] = 0;
+            }
+            if (g_keyRepeat[i] > 0) g_keyRepeat[i]++;
+        }
     }
 
 
