@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 #define SDL_MAIN_USE_CALLBACKS true
 #include <SDL3/SDL.h>
@@ -9,6 +10,25 @@
 #define VERSION "0.1.0"
 #define PROG_NAME "cchip8"
 #define APP_NAME "CChip8"
+
+const SDL_Scancode KEYMAP[16] = {
+    SDL_SCANCODE_X,
+    SDL_SCANCODE_1,
+    SDL_SCANCODE_2,
+    SDL_SCANCODE_3,
+    SDL_SCANCODE_Q,
+    SDL_SCANCODE_W,
+    SDL_SCANCODE_E,
+    SDL_SCANCODE_A,
+    SDL_SCANCODE_S,
+    SDL_SCANCODE_D,
+    SDL_SCANCODE_Z,
+    SDL_SCANCODE_C,
+    SDL_SCANCODE_4,
+    SDL_SCANCODE_R,
+    SDL_SCANCODE_F,
+    SDL_SCANCODE_V,
+};
 
 static SDL_Window* gp_window = NULL;
 static SDL_Renderer* gp_renderer = NULL;
@@ -21,15 +41,16 @@ uint16_t g_heldKeys = 0;
 bool g_windowResized = false;
 uint64_t g_dispTick = 0;
 
-uint64_t g_emulationFreq = 700;
+uint64_t g_emulationFreq = 500;
 uint64_t g_emulTick = 0;
+bool g_runEmul = true;
 
 
-SDL_AppResult SDL_AppInit(void** pp_appstate, int argc, char* argv[]) {
+SDL_AppResult SDL_AppInit(void** pp_appstate, int argc, char* p_argv[]) {
     printf("%s version %s\n\n", PROG_NAME, VERSION);
     SDL_SetAppMetadata(APP_NAME, VERSION, "io.github.theRookieCoder.CChip8");
 
-    if (argc != 2) {
+    if (argc < 2) {
         printf("Usage: cchip8 rom_file\n");
         return SDL_APP_FAILURE;
     }
@@ -56,6 +77,10 @@ SDL_AppResult SDL_AppInit(void** pp_appstate, int argc, char* argv[]) {
         return SDL_APP_FAILURE;
     }
 
+    // if (!SDL_SetRenderVSync(gp_renderer, 1)) {
+    //     SDL_Log("Couldn't set VSync: %s", SDL_GetError());
+    // }
+
     // Clear the screen to black
     SDL_SetRenderDrawColor(gp_renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
     SDL_RenderClear(gp_renderer);
@@ -66,7 +91,7 @@ SDL_AppResult SDL_AppInit(void** pp_appstate, int argc, char* argv[]) {
     MachineState* p_machineState = *pp_appstate;
 
     // Load program ROM
-    FILE* romFile = fopen(argv[1], "rb");
+    FILE* romFile = fopen(p_argv[1], "rb");
     if (romFile == NULL) {
         SDL_Log("ROM file could not be opened");
         return SDL_APP_FAILURE;
@@ -91,7 +116,13 @@ SDL_AppResult SDL_AppInit(void** pp_appstate, int argc, char* argv[]) {
 SDL_AppResult SDL_AppEvent(void*, SDL_Event* event) {
     if (event->type == SDL_EVENT_QUIT) return SDL_APP_SUCCESS;
 
+
     if (event->type == SDL_EVENT_WINDOW_RESIZED) g_windowResized = true;
+
+
+    if (event->type == SDL_EVENT_KEY_DOWN &&
+        event->key.scancode == SDL_SCANCODE_SPACE)
+        g_runEmul = !g_runEmul;
 
     if (event->type == SDL_EVENT_KEY_DOWN &&
         event->key.scancode == SDL_SCANCODE_MINUS)
@@ -100,107 +131,15 @@ SDL_AppResult SDL_AppEvent(void*, SDL_Event* event) {
         event->key.scancode == SDL_SCANCODE_EQUALS)
         g_emulationFreq += 100;
 
-    if (event->type == SDL_EVENT_KEY_DOWN) switch (event->key.scancode) {
-            case SDL_SCANCODE_1:
-                g_heldKeys |= 0b1 << 0x1;
-                break;
-            case SDL_SCANCODE_2:
-                g_heldKeys |= 0b1 << 0x2;
-                break;
-            case SDL_SCANCODE_3:
-                g_heldKeys |= 0b1 << 0x3;
-                break;
-            case SDL_SCANCODE_4:
-                g_heldKeys |= 0b1 << 0xC;
-                break;
-            case SDL_SCANCODE_Q:
-                g_heldKeys |= 0b1 << 0x4;
-                break;
-            case SDL_SCANCODE_W:
-                g_heldKeys |= 0b1 << 0x5;
-                break;
-            case SDL_SCANCODE_E:
-                g_heldKeys |= 0b1 << 0x6;
-                break;
-            case SDL_SCANCODE_R:
-                g_heldKeys |= 0b1 << 0xD;
-                break;
-            case SDL_SCANCODE_A:
-                g_heldKeys |= 0b1 << 0x7;
-                break;
-            case SDL_SCANCODE_S:
-                g_heldKeys |= 0b1 << 0x8;
-                break;
-            case SDL_SCANCODE_D:
-                g_heldKeys |= 0b1 << 0x9;
-                break;
-            case SDL_SCANCODE_F:
-                g_heldKeys |= 0b1 << 0xE;
-                break;
-            case SDL_SCANCODE_Z:
-                g_heldKeys |= 0b1 << 0xA;
-                break;
-            case SDL_SCANCODE_X:
-                g_heldKeys |= 0b1 << 0x0;
-                break;
-            case SDL_SCANCODE_C:
-                g_heldKeys |= 0b1 << 0xB;
-                break;
-            case SDL_SCANCODE_V:
-                g_heldKeys |= 0b1 << 0xF;
-                break;
-        };
 
-    if (event->type == SDL_EVENT_KEY_UP) switch (event->key.scancode) {
-            case SDL_SCANCODE_1:
-                g_heldKeys &= 0b0 << 0x1;
-                break;
-            case SDL_SCANCODE_2:
-                g_heldKeys &= 0b0 << 0x2;
-                break;
-            case SDL_SCANCODE_3:
-                g_heldKeys &= 0b0 << 0x3;
-                break;
-            case SDL_SCANCODE_4:
-                g_heldKeys &= 0b0 << 0xC;
-                break;
-            case SDL_SCANCODE_Q:
-                g_heldKeys &= 0b0 << 0x4;
-                break;
-            case SDL_SCANCODE_W:
-                g_heldKeys &= 0b0 << 0x5;
-                break;
-            case SDL_SCANCODE_E:
-                g_heldKeys &= 0b0 << 0x6;
-                break;
-            case SDL_SCANCODE_R:
-                g_heldKeys &= 0b0 << 0xD;
-                break;
-            case SDL_SCANCODE_A:
-                g_heldKeys &= 0b0 << 0x7;
-                break;
-            case SDL_SCANCODE_S:
-                g_heldKeys &= 0b0 << 0x8;
-                break;
-            case SDL_SCANCODE_D:
-                g_heldKeys &= 0b0 << 0x9;
-                break;
-            case SDL_SCANCODE_F:
-                g_heldKeys &= 0b0 << 0xE;
-                break;
-            case SDL_SCANCODE_Z:
-                g_heldKeys &= 0b0 << 0xA;
-                break;
-            case SDL_SCANCODE_X:
-                g_heldKeys &= 0b0 << 0x0;
-                break;
-            case SDL_SCANCODE_C:
-                g_heldKeys &= 0b0 << 0xB;
-                break;
-            case SDL_SCANCODE_V:
-                g_heldKeys &= 0b0 << 0xF;
-                break;
-        };
+    if (event->type == SDL_EVENT_KEY_DOWN)
+        for (int i = 0; i < 16; i++)
+            if (event->key.scancode == KEYMAP[i]) g_heldKeys |= 0b1 << i;
+
+    if (event->type == SDL_EVENT_KEY_UP)
+        for (int i = 0; i < 16; i++)
+            if (event->key.scancode == KEYMAP[i]) g_heldKeys &= 0b0 << i;
+
 
     return SDL_APP_CONTINUE;
 }
@@ -218,22 +157,25 @@ SDL_AppResult SDL_AppIterate(void* p_appstate) {
     /* CORE TICKING */
 
     // Tick the core if needed
-    if (SDL_GetTicks() - g_emulTick > (1000.0 / g_emulationFreq)) {
-        g_emulTick = SDL_GetTicks();
-
+    if (g_runEmul &&
+        SDL_GetTicksNS() - g_emulTick > (1000000000 / g_emulationFreq)) {
 #if DEBUG
         printf("\x1b[2J\x1b[H");
-        printf("Emulation frequency: %d Hz\n", g_emulationFreq);
+        printf("Emulation frequency  : %lu Hz\n", g_emulationFreq);
+        printf("Emulation time period: %g ms\n",
+               ((double)SDL_GetTicksNS() - g_emulTick) / 1000000);
         printf("Held keys: %016B\n", g_heldKeys);
         printf("           FEDCBA9876543210\n\n");
 #endif
 
+        g_emulTick = SDL_GetTicksNS();
+
         updateDisp = core_tick(p_machineState, &heldKeys);
     };
 
-    // Tick the display and sound timers at 60 Hz
-    if ((SDL_GetTicks() - g_dispTick) > (1000.0 / 60.0)) {
-        g_dispTick = SDL_GetTicks();
+    // Tick the delay and sound timers at 60 Hz
+    if (g_runEmul && (SDL_GetTicksNS() - g_dispTick) > (1000000000 / 60)) {
+        g_dispTick = SDL_GetTicksNS();
         core_timerTick(p_machineState);
     }
 

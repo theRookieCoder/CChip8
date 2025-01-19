@@ -25,62 +25,61 @@ const uint8_t FONT[16 * 5] = {
     0xF0, 0x80, 0xF0, 0x80, 0x80   // F
 };
 
-void push(MachineState* self, uint16_t val) {
-    if (self->stackIdx > 16) printf("Stack overflow!\n");
+void push(MachineState* p_self, uint16_t val) {
+    if (p_self->stackIdx > 16) printf("Stack overflow!\n");
 
-    self->stack[(self->stackIdx)++] = val;
+    p_self->stack[(p_self->stackIdx)++ % 16] = val;
 }
 
-uint16_t pop(MachineState* self) { return self->stack[--(self->stackIdx)]; }
+uint16_t pop(MachineState* p_self) {
+    return p_self->stack[--(p_self->stackIdx)];
+}
 
 MachineState* core_init() {
-    static MachineState self = {.programCounter = 0x200};
+    static MachineState p_self = {.programCounter = 0x200};
 
-    memcpy(&self.ram[0x50], FONT, sizeof(FONT));
+    memcpy(&p_self.ram[0x50], FONT, sizeof(FONT));
 
-    return &self;
+    return &p_self;
 }
 
-void core_loadROM(MachineState* self, FILE* romFile) {
-    int i = 0;
-    int written = 0;
-    while ((written = fread(
-                &self->ram[0x200 + i], sizeof *(self->ram), 1, romFile)) > 0)
-        i += written;
-}
-
-#define V0 self->varRegs[0x0]
-#define V1 self->varRegs[0x1]
-#define V2 self->varRegs[0x2]
-#define V3 self->varRegs[0x3]
-#define V4 self->varRegs[0x4]
-#define V5 self->varRegs[0x5]
-#define V6 self->varRegs[0x6]
-#define V7 self->varRegs[0x7]
-#define V8 self->varRegs[0x8]
-#define V9 self->varRegs[0x9]
-#define VA self->varRegs[0xA]
-#define VB self->varRegs[0xB]
-#define VC self->varRegs[0xC]
-#define VD self->varRegs[0xD]
-#define VE self->varRegs[0xE]
-#define VF self->varRegs[0xF]
-#define VX self->varRegs[X]
-#define VY self->varRegs[Y]
-
-void core_timerTick(MachineState* self) {
-    if (self->delayTimer > 0) self->delayTimer--;
-    if (self->soundTimer > 0) self->soundTimer--;
-}
-
-bool core_tick(MachineState* self, uint16_t (*heldKeys)()) {
-    /* FETCH */
-    uint16_t instruction = (self->ram[self->programCounter] << 8) +
-                           self->ram[self->programCounter + 1];
-    self->programCounter += 2;
+void core_loadROM(MachineState* p_self, FILE* romFile) {
+    int read = fread(
+        &p_self->ram[0x200], sizeof(*(p_self->ram)), 0x1000 - 0x0200, romFile);
 #if DEBUG
-    printf("\nInstruction: %04X\n", instruction);
+    printf("Loaded %i bytes into machine state's RAM.\n", read);
 #endif
+}
+
+#define V0 p_self->varRegs[0x0]
+#define V1 p_self->varRegs[0x1]
+#define V2 p_self->varRegs[0x2]
+#define V3 p_self->varRegs[0x3]
+#define V4 p_self->varRegs[0x4]
+#define V5 p_self->varRegs[0x5]
+#define V6 p_self->varRegs[0x6]
+#define V7 p_self->varRegs[0x7]
+#define V8 p_self->varRegs[0x8]
+#define V9 p_self->varRegs[0x9]
+#define VA p_self->varRegs[0xA]
+#define VB p_self->varRegs[0xB]
+#define VC p_self->varRegs[0xC]
+#define VD p_self->varRegs[0xD]
+#define VE p_self->varRegs[0xE]
+#define VF p_self->varRegs[0xF]
+#define VX p_self->varRegs[X]
+#define VY p_self->varRegs[Y]
+
+void core_timerTick(MachineState* p_self) {
+    if (p_self->delayTimer > 0) p_self->delayTimer--;
+    if (p_self->soundTimer > 0) p_self->soundTimer--;
+}
+
+bool core_tick(MachineState* p_self, uint16_t (*heldKeys)()) {
+    /* FETCH */
+    uint16_t instruction = (p_self->ram[p_self->programCounter] << 8) +
+                           p_self->ram[p_self->programCounter + 1];
+    p_self->programCounter += 2;
 
 
     /* DECODE */
@@ -92,13 +91,16 @@ bool core_tick(MachineState* self, uint16_t (*heldKeys)()) {
 
 // Display machine state
 #if DEBUG
-    printf("PC: 0x%04X\n", self->programCounter - 2);
-    printf("Stack:\n");
-    for (int i = 0; i < 16; i++) printf("    0x%04X,\n", self->stack[i]);
-    printf("SP: %i\n", self->stackIdx);
-    printf("I : 0x%04X\n", self->indexReg);
+    printf("\nPC: 0x%04X\n", p_self->programCounter - 2);
+    printf("Instruction: %04X\n", instruction);
+    printf("Stack: ");
+    for (int i = 0; i < p_self->stackIdx; i++)
+        printf("%03X, ", p_self->stack[i]);
+    printf("\n");
+    printf("SP: %i\n", p_self->stackIdx);
+    printf("I : 0x%04X\n", p_self->indexReg);
     printf("V : ");
-    for (int i = 0; i < 16; i++) printf("0x%02X, ", self->varRegs[i]);
+    for (int i = 0; i < 16; i++) printf("0x%02X, ", p_self->varRegs[i]);
     printf("\n");
     printf("VX: 0x%02X\n", VX);
     printf("VY: 0x%02X\n", VY);
@@ -114,12 +116,12 @@ bool core_tick(MachineState* self, uint16_t (*heldKeys)()) {
                 case 0xE: {
                     switch (N) {
                         case 0x0:
-                            memset(self->dispBuf, 0, sizeof(self->dispBuf));
+                            memset(p_self->dispBuf, 0, sizeof(p_self->dispBuf));
                             updateDisp = true;
                             break;
 
                         case 0xE:
-                            self->programCounter = pop(self);
+                            p_self->programCounter = pop(p_self);
                             break;
 #if DEBUG
                         default:
@@ -139,28 +141,28 @@ bool core_tick(MachineState* self, uint16_t (*heldKeys)()) {
         }
 
         case 0x1:
-            self->programCounter = NNN;
+            p_self->programCounter = NNN;
             break;
 
         case 0x2:
-            push(self, self->programCounter);
-            self->programCounter = NNN;
+            push(p_self, p_self->programCounter);
+            p_self->programCounter = NNN;
             break;
 
         case 0x3:
-            if (VX == NN) self->programCounter += 2;
+            if (VX == NN) p_self->programCounter += 2;
             break;
 
         case 0x4:
-            if (VX != NN) self->programCounter += 2;
+            if (VX != NN) p_self->programCounter += 2;
             break;
 
         case 0x5:
-            if (VX == VY) self->programCounter += 2;
+            if (VX == VY) p_self->programCounter += 2;
             break;
 
         case 0x9:
-            if (VX != VY) self->programCounter += 2;
+            if (VX != VY) p_self->programCounter += 2;
             break;
 
         case 0x8: {
@@ -236,11 +238,11 @@ bool core_tick(MachineState* self, uint16_t (*heldKeys)()) {
             break;
 
         case 0xA:
-            self->indexReg = NNN;
+            p_self->indexReg = NNN;
             break;
 
         case 0xB:
-            self->programCounter = NNN + V0;
+            p_self->programCounter = NNN + V0;
             break;
 
         case 0xC:
@@ -255,12 +257,12 @@ bool core_tick(MachineState* self, uint16_t (*heldKeys)()) {
 
             for (int i = 0; i < N; i++) {
                 x = VX % 64;
-                uint8_t nthSpriteRow = self->ram[self->indexReg + i];
+                uint8_t nthSpriteRow = p_self->ram[p_self->indexReg + i];
                 for (int j = 7; j >= 0; j--) {
                     bool bit = (nthSpriteRow & (1 << j)) >> j;
                     if (bit) {
-                        VF |= self->dispBuf[x][y];
-                        self->dispBuf[x][y] = !self->dispBuf[x][y];
+                        VF |= p_self->dispBuf[x][y];
+                        p_self->dispBuf[x][y] = !p_self->dispBuf[x][y];
                     }
                     x++;
                     if (x > 63) break;
@@ -274,11 +276,12 @@ bool core_tick(MachineState* self, uint16_t (*heldKeys)()) {
         case 0xE: {
             switch (NN) {
                 case 0x9E:
-                    if ((heldKeys() >> VX) & 0b1) self->programCounter += 2;
+                    if ((heldKeys() >> VX) & 0b1) p_self->programCounter += 2;
                     break;
 
                 case 0xA1:
-                    if (!((heldKeys() >> VX) & 0b1)) self->programCounter += 2;
+                    if (!((heldKeys() >> VX) & 0b1))
+                        p_self->programCounter += 2;
                     break;
 #if DEBUG
                 default:
@@ -292,26 +295,26 @@ bool core_tick(MachineState* self, uint16_t (*heldKeys)()) {
         case 0xF: {
             switch (NN) {
                 case 0x07:
-                    VX = self->delayTimer;
+                    VX = p_self->delayTimer;
                     break;
 
                 case 0x15:
-                    self->delayTimer = VX;
+                    p_self->delayTimer = VX;
                     break;
 
                 case 0x18:
-                    self->soundTimer = VX;
+                    p_self->soundTimer = VX;
                     break;
 
                 case 0x1E:
-                    self->indexReg += VX;
-                    if (self->indexReg > 0x1000)
+                    p_self->indexReg += VX;
+                    if (p_self->indexReg > 0x1000)
                         VF = 1;  // Amiga specific behaviour
                     break;
 
                 case 0x0A:
                     if (heldKeys() == 0)
-                        self->programCounter -= 2;
+                        p_self->programCounter -= 2;
                     else
                         for (int i = 0; i < 16; i++)
                             if (heldKeys() >> i & 0b1) VX = i;
@@ -319,23 +322,23 @@ bool core_tick(MachineState* self, uint16_t (*heldKeys)()) {
                     break;
 
                 case 0x29:
-                    self->indexReg = 0x50 + (VX & 0xF) * 5;
+                    p_self->indexReg = 0x50 + (VX & 0xF) * 5;
                     break;
 
                 case 0x33:
-                    self->ram[self->indexReg + 2] = (VX / 1) % 10;
-                    self->ram[self->indexReg + 1] = (VX / 10) % 10;
-                    self->ram[self->indexReg + 0] = (VX / 100) % 10;
+                    p_self->ram[p_self->indexReg + 2] = (VX / 1) % 10;
+                    p_self->ram[p_self->indexReg + 1] = (VX / 10) % 10;
+                    p_self->ram[p_self->indexReg + 0] = (VX / 100) % 10;
                     break;
 
                 case 0x55:
                     for (int i = 0; i <= X; i++)
-                        self->ram[self->indexReg + i] = self->varRegs[i];
+                        p_self->ram[p_self->indexReg + i] = p_self->varRegs[i];
                     break;
 
                 case 0x65:
                     for (int i = 0; i <= X; i++)
-                        self->varRegs[i] = self->ram[self->indexReg + i];
+                        p_self->varRegs[i] = p_self->ram[p_self->indexReg + i];
                     break;
 #if DEBUG
                 default:
