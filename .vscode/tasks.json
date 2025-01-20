@@ -1,0 +1,26 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "process",
+            "label": "build",
+            "command": "just",
+            "args": [
+                "build"
+            ],
+            "presentation": {
+                "echo": true,
+                "clear": true,
+                "reveal": "silent",
+                "showReuseMessage": false,
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true,
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+        }
+    ]
+}
