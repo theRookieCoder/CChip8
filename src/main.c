@@ -241,6 +241,7 @@ SDL_AppResult SDL_AppIterate(void* p_appstate) {
 
 void SDL_AppQuit(void*, SDL_AppResult result) {
 #if DEBUG
+    // Some buffer time to have a look at the display
     if (result == SDL_APP_FAILURE) SDL_Delay(3000);
 #endif
 }

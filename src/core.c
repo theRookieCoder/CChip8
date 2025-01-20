@@ -173,14 +173,17 @@ bool core_tick(MachineState* p_self, uint16_t (*heldKeys)()) {
 
                 case 0x1:
                     VX |= VY;
+                    VF = 0;
                     break;
 
                 case 0x2:
                     VX &= VY;
+                    VF = 0;
                     break;
 
                 case 0x3:
                     VX ^= VY;
+                    VF = 0;
                     break;
 
                 case 0x4: {
@@ -208,15 +211,15 @@ bool core_tick(MachineState* p_self, uint16_t (*heldKeys)()) {
                 }
 
                 case 0x6: {
-                    bool shiftedOut = VX & 0b00000001;
-                    VX = VX >> 1;
+                    bool shiftedOut = VY & 0b00000001;
+                    VX = VY >> 1;
                     VF = shiftedOut;
                     break;
                 }
 
                 case 0xE: {
-                    bool shiftedOut = (VX & 0b10000000) >> 7;
-                    VX = VX << 1;
+                    bool shiftedOut = (VY & 0b10000000) >> 7;
+                    VX = VY << 1;
                     VF = shiftedOut;
                     break;
                 }
@@ -251,12 +254,12 @@ bool core_tick(MachineState* p_self, uint16_t (*heldKeys)()) {
 
         case 0xD: {
             updateDisp = true;
-            int x = VX % 64;
+            int start_x = VX % 64;
             int y = VY % 32;
             VF = 0;
 
             for (int i = 0; i < N; i++) {
-                x = VX % 64;
+                int x = start_x;
                 uint8_t nthSpriteRow = p_self->ram[p_self->indexReg + i];
                 for (int j = 7; j >= 0; j--) {
                     bool bit = (nthSpriteRow & (1 << j)) >> j;
@@ -268,6 +271,7 @@ bool core_tick(MachineState* p_self, uint16_t (*heldKeys)()) {
                     if (x > 63) break;
                 }
                 y++;
+                if (y > 31) break;
             }
 
             break;
@@ -333,12 +337,12 @@ bool core_tick(MachineState* p_self, uint16_t (*heldKeys)()) {
 
                 case 0x55:
                     for (int i = 0; i <= X; i++)
-                        p_self->ram[p_self->indexReg + i] = p_self->varRegs[i];
+                        p_self->ram[p_self->indexReg++] = p_self->varRegs[i];
                     break;
 
                 case 0x65:
                     for (int i = 0; i <= X; i++)
-                        p_self->varRegs[i] = p_self->ram[p_self->indexReg + i];
+                        p_self->varRegs[i] = p_self->ram[p_self->indexReg++];
                     break;
 #if DEBUG
                 default:
