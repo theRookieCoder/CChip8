@@ -3,83 +3,194 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>  // rand()
-#include <string.h>  // memcpy() and memset()
+#include <stdlib.h>
+#include <string.h>
 
-const uint8_t FONT[16 * 5] = {
-    0xF0, 0x90, 0x90, 0x90, 0xF0,  // 0
-    0x20, 0x60, 0x20, 0x20, 0x70,  // 1
-    0xF0, 0x10, 0xF0, 0x80, 0xF0,  // 2
-    0xF0, 0x10, 0xF0, 0x10, 0xF0,  // 3
-    0x90, 0x90, 0xF0, 0x10, 0x10,  // 4
-    0xF0, 0x80, 0xF0, 0x10, 0xF0,  // 5
-    0xF0, 0x80, 0xF0, 0x90, 0xF0,  // 6
-    0xF0, 0x10, 0x20, 0x40, 0x40,  // 7
-    0xF0, 0x90, 0xF0, 0x90, 0xF0,  // 8
-    0xF0, 0x90, 0xF0, 0x10, 0xF0,  // 9
-    0xF0, 0x90, 0xF0, 0x90, 0x90,  // A
-    0xE0, 0x90, 0xE0, 0x90, 0xE0,  // B
-    0xF0, 0x80, 0x80, 0x80, 0xF0,  // C
-    0xE0, 0x90, 0x90, 0x90, 0xE0,  // D
-    0xF0, 0x80, 0xF0, 0x80, 0xF0,  // E
-    0xF0, 0x80, 0xF0, 0x80, 0x80   // F
+
+const uint8_t DEFAULT_FONT[16 * 5] = {
+    // 0
+    0b11110000,
+    0b10010000,
+    0b10010000,
+    0b10010000,
+    0b11110000,
+
+    // 1
+    0b00100000,
+    0b01100000,
+    0b00100000,
+    0b00100000,
+    0b01110000,
+
+    // 2
+    0b11110000,
+    0b00010000,
+    0b11110000,
+    0b10000000,
+    0b11110000,
+
+    // 3
+    0b11110000,
+    0b00010000,
+    0b11110000,
+    0b00010000,
+    0b11110000,
+
+    // 4
+    0b10010000,
+    0b10010000,
+    0b11110000,
+    0b00010000,
+    0b00010000,
+
+    // 5
+    0b11110000,
+    0b10000000,
+    0b11110000,
+    0b00010000,
+    0b11110000,
+
+    // 6
+    0b11110000,
+    0b10000000,
+    0b11110000,
+    0b10010000,
+    0b11110000,
+
+    // 7
+    0b11110000,
+    0b00010000,
+    0b00100000,
+    0b01000000,
+    0b01000000,
+
+    // 8
+    0b11110000,
+    0b10010000,
+    0b11110000,
+    0b10010000,
+    0b11110000,
+
+    // 9
+    0b11110000,
+    0b10010000,
+    0b11110000,
+    0b00010000,
+    0b11110000,
+
+    // A
+    0b11110000,
+    0b10010000,
+    0b11110000,
+    0b10010000,
+    0b10010000,
+
+    // B
+    0b11100000,
+    0b10010000,
+    0b11100000,
+    0b10010000,
+    0b11100000,
+
+    // C
+    0b11110000,
+    0b10000000,
+    0b10000000,
+    0b10000000,
+    0b11110000,
+
+    // D
+    0b11100000,
+    0b10010000,
+    0b10010000,
+    0b10010000,
+    0b11100000,
+
+    // E
+    0b11110000,
+    0b10000000,
+    0b11110000,
+    0b10000000,
+    0b11110000,
+
+    // F
+    0b11110000,
+    0b10000000,
+    0b11110000,
+    0b10000000,
+    0b10000000,
 };
 
-void push(MachineState* p_self, uint16_t val) {
-    if (p_self->stackIdx > 16) printf("Stack overflow!\n");
 
-    p_self->stack[(p_self->stackIdx)++ % 16] = val;
+void push(MachineState* p_machineState, uint16_t val) {
+    if (p_machineState->stackIdx > 16) printf("Stack overflow!\n");
+
+    p_machineState->stack[(p_machineState->stackIdx)++ % 16] = val;
 }
 
-uint16_t pop(MachineState* p_self) {
-    return p_self->stack[--(p_self->stackIdx)];
+uint16_t pop(MachineState* p_machineState) {
+    return p_machineState->stack[--(p_machineState->stackIdx)];
 }
 
-MachineState* core_init() {
-    static MachineState p_self = {.programCounter = 0x200};
 
-    memcpy(&p_self.ram[0x50], FONT, sizeof(FONT));
+MachineState* core_init(const uint8_t p_font[16 * 5],
+                        uint16_t (*heldKeys)(),
+                        bool (*getPixel)(uint8_t x, uint8_t y),
+                        void (*togglePixel)(uint8_t x, uint8_t y),
+                        void (*clearDisplay)()) {
+    static MachineState machineState = {.programCounter = 0x0200};
+    machineState.heldKeys = heldKeys;
+    machineState.getPixel = getPixel;
+    machineState.togglePixel = togglePixel;
+    machineState.clearDisplay = clearDisplay;
 
-    return &p_self;
+    memcpy(&machineState.ram[0x0050],
+           (p_font != NULL) ? p_font : DEFAULT_FONT,
+           16 * 5);
+
+    return &machineState;
 }
 
-void core_loadROM(MachineState* p_self, FILE* romFile) {
-    int read = fread(
-        &p_self->ram[0x200], sizeof(*(p_self->ram)), 0x1000 - 0x0200, romFile);
+void core_loadROM(MachineState* p_machineState, FILE* romFile) {
+    int read = fread(&p_machineState->ram[0x0200],
+                     sizeof(*(p_machineState->ram)),
+                     sizeof(p_machineState->ram) - 0x0200,
+                     romFile);
 #if DEBUG
     printf("Loaded %i bytes into machine state's RAM.\n", read);
 #endif
 }
 
-#define V0 p_self->varRegs[0x0]
-#define V1 p_self->varRegs[0x1]
-#define V2 p_self->varRegs[0x2]
-#define V3 p_self->varRegs[0x3]
-#define V4 p_self->varRegs[0x4]
-#define V5 p_self->varRegs[0x5]
-#define V6 p_self->varRegs[0x6]
-#define V7 p_self->varRegs[0x7]
-#define V8 p_self->varRegs[0x8]
-#define V9 p_self->varRegs[0x9]
-#define VA p_self->varRegs[0xA]
-#define VB p_self->varRegs[0xB]
-#define VC p_self->varRegs[0xC]
-#define VD p_self->varRegs[0xD]
-#define VE p_self->varRegs[0xE]
-#define VF p_self->varRegs[0xF]
-#define VX p_self->varRegs[X]
-#define VY p_self->varRegs[Y]
+#define V0 p_machineState->varRegs[0x0]
+#define V1 p_machineState->varRegs[0x1]
+#define V2 p_machineState->varRegs[0x2]
+#define V3 p_machineState->varRegs[0x3]
+#define V4 p_machineState->varRegs[0x4]
+#define V5 p_machineState->varRegs[0x5]
+#define V6 p_machineState->varRegs[0x6]
+#define V7 p_machineState->varRegs[0x7]
+#define V8 p_machineState->varRegs[0x8]
+#define V9 p_machineState->varRegs[0x9]
+#define VA p_machineState->varRegs[0xA]
+#define VB p_machineState->varRegs[0xB]
+#define VC p_machineState->varRegs[0xC]
+#define VD p_machineState->varRegs[0xD]
+#define VE p_machineState->varRegs[0xE]
+#define VF p_machineState->varRegs[0xF]
+#define VX p_machineState->varRegs[X]
+#define VY p_machineState->varRegs[Y]
 
-void core_timerTick(MachineState* p_self) {
-    if (p_self->delayTimer > 0) p_self->delayTimer--;
-    if (p_self->soundTimer > 0) p_self->soundTimer--;
+void core_timerTick(MachineState* p_machineState) {
+    if (p_machineState->delayTimer > 0) p_machineState->delayTimer--;
+    if (p_machineState->soundTimer > 0) p_machineState->soundTimer--;
 }
 
-bool core_tick(MachineState* p_self, uint16_t (*heldKeys)()) {
+bool core_tick(MachineState* p_machineState) {
     /* FETCH */
-    uint16_t instruction = (p_self->ram[p_self->programCounter] << 8) +
-                           p_self->ram[p_self->programCounter + 1];
-    p_self->programCounter += 2;
+    uint16_t instruction =
+        (p_machineState->ram[p_machineState->programCounter] << 8) +
+        p_machineState->ram[p_machineState->programCounter + 1];
+    p_machineState->programCounter += 2;
 
 
     /* DECODE */
@@ -91,16 +202,16 @@ bool core_tick(MachineState* p_self, uint16_t (*heldKeys)()) {
 
 // Display machine state
 #if DEBUG
-    printf("\nPC: 0x%04X\n", p_self->programCounter - 2);
+    printf("\nPC: 0x%04X\n", p_machineState->programCounter - 2);
     printf("Instruction: %04X\n", instruction);
     printf("Stack: ");
-    for (int i = 0; i < p_self->stackIdx; i++)
-        printf("%03X, ", p_self->stack[i]);
+    for (int i = 0; i < p_machineState->stackIdx; i++)
+        printf("%03X, ", p_machineState->stack[i]);
     printf("\n");
-    printf("SP: %i\n", p_self->stackIdx);
-    printf("I : 0x%04X\n", p_self->indexReg);
+    printf("SP: %i\n", p_machineState->stackIdx);
+    printf("I : 0x%04X\n", p_machineState->indexReg);
     printf("V : ");
-    for (int i = 0; i < 16; i++) printf("0x%02X, ", p_self->varRegs[i]);
+    for (int i = 0; i < 16; i++) printf("0x%02X, ", p_machineState->varRegs[i]);
     printf("\n");
     printf("VX: 0x%02X\n", VX);
     printf("VY: 0x%02X\n", VY);
@@ -116,12 +227,13 @@ bool core_tick(MachineState* p_self, uint16_t (*heldKeys)()) {
                 case 0xE: {
                     switch (N) {
                         case 0x0:
-                            memset(p_self->dispBuf, 0, sizeof(p_self->dispBuf));
+                            p_machineState->clearDisplay();
                             updateDisp = true;
                             break;
 
                         case 0xE:
-                            p_self->programCounter = pop(p_self);
+                            p_machineState->programCounter =
+                                pop(p_machineState);
                             break;
 #if DEBUG
                         default:
@@ -141,28 +253,28 @@ bool core_tick(MachineState* p_self, uint16_t (*heldKeys)()) {
         }
 
         case 0x1:
-            p_self->programCounter = NNN;
+            p_machineState->programCounter = NNN;
             break;
 
         case 0x2:
-            push(p_self, p_self->programCounter);
-            p_self->programCounter = NNN;
+            push(p_machineState, p_machineState->programCounter);
+            p_machineState->programCounter = NNN;
             break;
 
         case 0x3:
-            if (VX == NN) p_self->programCounter += 2;
+            if (VX == NN) p_machineState->programCounter += 2;
             break;
 
         case 0x4:
-            if (VX != NN) p_self->programCounter += 2;
+            if (VX != NN) p_machineState->programCounter += 2;
             break;
 
         case 0x5:
-            if (VX == VY) p_self->programCounter += 2;
+            if (VX == VY) p_machineState->programCounter += 2;
             break;
 
         case 0x9:
-            if (VX != VY) p_self->programCounter += 2;
+            if (VX != VY) p_machineState->programCounter += 2;
             break;
 
         case 0x8: {
@@ -241,11 +353,11 @@ bool core_tick(MachineState* p_self, uint16_t (*heldKeys)()) {
             break;
 
         case 0xA:
-            p_self->indexReg = NNN;
+            p_machineState->indexReg = NNN;
             break;
 
         case 0xB:
-            p_self->programCounter = NNN + V0;
+            p_machineState->programCounter = NNN + V0;
             break;
 
         case 0xC:
@@ -260,12 +372,13 @@ bool core_tick(MachineState* p_self, uint16_t (*heldKeys)()) {
 
             for (int i = 0; i < N; i++) {
                 int x = start_x;
-                uint8_t nthSpriteRow = p_self->ram[p_self->indexReg + i];
+                uint8_t nthSpriteRow =
+                    p_machineState->ram[p_machineState->indexReg + i];
                 for (int j = 7; j >= 0; j--) {
                     bool bit = (nthSpriteRow & (1 << j)) >> j;
                     if (bit) {
-                        VF |= p_self->dispBuf[x][y];
-                        p_self->dispBuf[x][y] = !p_self->dispBuf[x][y];
+                        VF |= p_machineState->getPixel(x, y);
+                        p_machineState->togglePixel(x, y);
                     }
                     x++;
                     if (x > 63) break;
@@ -280,12 +393,13 @@ bool core_tick(MachineState* p_self, uint16_t (*heldKeys)()) {
         case 0xE: {
             switch (NN) {
                 case 0x9E:
-                    if ((heldKeys() >> VX) & 0b1) p_self->programCounter += 2;
+                    if ((p_machineState->heldKeys() >> VX) & 0b1)
+                        p_machineState->programCounter += 2;
                     break;
 
                 case 0xA1:
-                    if (!((heldKeys() >> VX) & 0b1))
-                        p_self->programCounter += 2;
+                    if (!((p_machineState->heldKeys() >> VX) & 0b1))
+                        p_machineState->programCounter += 2;
                     break;
 #if DEBUG
                 default:
@@ -299,50 +413,55 @@ bool core_tick(MachineState* p_self, uint16_t (*heldKeys)()) {
         case 0xF: {
             switch (NN) {
                 case 0x07:
-                    VX = p_self->delayTimer;
+                    VX = p_machineState->delayTimer;
                     break;
 
                 case 0x15:
-                    p_self->delayTimer = VX;
+                    p_machineState->delayTimer = VX;
                     break;
 
                 case 0x18:
-                    p_self->soundTimer = VX;
+                    p_machineState->soundTimer = VX;
                     break;
 
                 case 0x1E:
-                    p_self->indexReg += VX;
-                    if (p_self->indexReg > 0x1000)
+                    p_machineState->indexReg += VX;
+                    if (p_machineState->indexReg > 0x1000)
                         VF = 1;  // Amiga specific behaviour
                     break;
 
                 case 0x0A:
-                    if (heldKeys() == 0)
-                        p_self->programCounter -= 2;
+                    if (p_machineState->heldKeys() == 0)
+                        p_machineState->programCounter -= 2;
                     else
                         for (int i = 0; i < 16; i++)
-                            if (heldKeys() >> i & 0b1) VX = i;
+                            if (p_machineState->heldKeys() >> i & 0b1) VX = i;
 
                     break;
 
                 case 0x29:
-                    p_self->indexReg = 0x50 + (VX & 0xF) * 5;
+                    p_machineState->indexReg = 0x50 + (VX & 0xF) * 5;
                     break;
 
                 case 0x33:
-                    p_self->ram[p_self->indexReg + 2] = (VX / 1) % 10;
-                    p_self->ram[p_self->indexReg + 1] = (VX / 10) % 10;
-                    p_self->ram[p_self->indexReg + 0] = (VX / 100) % 10;
+                    p_machineState->ram[p_machineState->indexReg + 2] =
+                        (VX / 1) % 10;
+                    p_machineState->ram[p_machineState->indexReg + 1] =
+                        (VX / 10) % 10;
+                    p_machineState->ram[p_machineState->indexReg + 0] =
+                        (VX / 100) % 10;
                     break;
 
                 case 0x55:
                     for (int i = 0; i <= X; i++)
-                        p_self->ram[p_self->indexReg++] = p_self->varRegs[i];
+                        p_machineState->ram[p_machineState->indexReg++] =
+                            p_machineState->varRegs[i];
                     break;
 
                 case 0x65:
                     for (int i = 0; i <= X; i++)
-                        p_self->varRegs[i] = p_self->ram[p_self->indexReg++];
+                        p_machineState->varRegs[i] =
+                            p_machineState->ram[p_machineState->indexReg++];
                     break;
 #if DEBUG
                 default:

@@ -5,62 +5,112 @@
 #include <stdint.h>
 #include <stdio.h>
 
+/**
+ * Holds the state of the emulated machine
+ */
 typedef struct MachineState {
-    uint8_t ram[4096];
+#ifndef CORE_RAM_SIZE
+#define CORE_RAM_SIZE 4096
+#endif
+    /// The emulated RAM.
+    /// Its size can be controlled using the `CORE_RAM_SIZE` macro, which
+    /// defaults to `4096`.
+    uint8_t ram[CORE_RAM_SIZE];
 
-    bool dispBuf[64][32];
-
+    /// Address to load the next instruction from
     uint16_t programCounter;
     uint16_t indexReg;
-
     uint8_t varRegs[16];
 
+    /// Stores return addresses when jumping to subroutines
     uint16_t stack[16];
+    /// The number of addresses stored on the stack
     uint8_t stackIdx;
 
     uint8_t delayTimer;
     uint8_t soundTimer;
+
+    /* CALLBACKS */
+
+    /**
+     * Called when key input needs to be tested
+     *
+     * @returns Bitflags of the keys that are held
+     */
+    uint16_t (*heldKeys)();
+
+    /**
+     * Gets the state of the pixel at the coordinates (x, y).
+     *
+     * Automatically wraps if the coordinates exceed the display size.
+     *
+     * @param x x coordinate of the pixel to query
+     * @param y y coordinate of the pixel to query
+     *
+     * @returns Whether the pixel is on or off
+     */
+    bool (*getPixel)(uint8_t x, uint8_t y);
+
+    /**
+     * Toggles the state of the pixel at the coordinates (x, y)
+     *
+     * Automatically wraps if the coordinates exceed the display size.
+     *
+     * @param x x coordinate of the pixel to toggle
+     * @param y y coordinate of the pixel to toggle
+     */
+    void (*togglePixel)(uint8_t x, uint8_t y);
+
+    /// Clears the display
+    void (*clearDisplay)();
 } MachineState;
 
 /**
  * Initialise the core's machine state.
  *
- * The machine state is initialised in `static` memory, and the font is loaded
- * into address `0x050`.
+ * The machine state is initialised in `static` memory.
+ * The font is loaded into RAM at `0x0050` from `p_font`. A default font is
+ * loaded if `p_font` is `NULL`.
  *
- * @return Pointer to the initialised machine state
+ * @param p_font        The font to load
+ *
+ * @returns Pointer to the initialised machine state
+ *
+ * @see `MachineState` for documentation about the callbacks
  */
-MachineState* core_init();
+MachineState* core_init(const uint8_t p_font[16 * 5],
+                        uint16_t (*heldKeys)(),
+                        bool (*getPixel)(uint8_t x, uint8_t y),
+                        void (*togglePixel)(uint8_t x, uint8_t y),
+                        void (*clearDisplay)());
 
 /**
- * Load a program from `romFile` into `self`'s RAM.
+ * Load a program from `romFile` into `p_machineState`'s RAM.
  *
- * Only `0x0E00` bytes from the `romFile` are loaded, since that is the maximum
- * amount the CHIP-8's RAM can hold.
+ * Only the amount of bytes the emulated RAM can hold, i.e.
+ * `sizeof(p_machineState->ram) - 0x0200`, is loaded.
  *
- * @param self      The machine state to load the ROM into
- * @param romFile   The ROM file to load
+ * @param p_machineState    The machine state to load the ROM into
+ * @param romFile           The ROM file to load
  */
-void core_loadROM(MachineState* self, FILE* romFile);
+void core_loadROM(MachineState* p_machineState, FILE* romFile);
 
 /**
- * Tick the machine state's delay and sound timers.
+ * Tick `p_machineState`'s delay and sound timers.
  *
- * This should be done 60 times per second (at 60 Hz).
+ * This should be called 60 times per second (at 60 Hz).
  *
- * @param self  The machine state to tick
+ * @param p_machineState  The machine state to tick
  */
-void core_timerTick(MachineState* self);
+void core_timerTick(MachineState* p_machineState);
 
 /**
- * Execute a single instruction.
+ * Execute a single instruction, and update `p_machineState` accordingly.
  *
- * @param self      The machine state
- * @param heldKeys  A pointer to a function that returns 16 bits corresponding
- *                  to the 16 keys
+ * @param p_machineState    The machine state
  *
- * @return          Whether the machine state's display buffer was updated
+ * @return Whether the display buffer was updated
  */
-bool core_tick(MachineState* self, uint16_t (*heldKeys)());
+bool core_tick(MachineState* p_machineState);
 
 #endif

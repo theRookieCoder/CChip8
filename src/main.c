@@ -39,6 +39,15 @@ uint64_t g_keyRepeat[16] = {};
 // Whether the key has been released but is still being buffered
 bool g_keyReleased[16] = {};
 
+uint16_t heldKeys() {
+    uint16_t heldKeys = 0;
+
+    for (int i = 0; i < 16; i++)
+        if (g_keyRepeat[i] > 0) heldKeys |= 0b1 << i;
+
+    return heldKeys;
+}
+
 
 static SDL_Window* gp_window = NULL;
 static SDL_Renderer* gp_renderer = NULL;
@@ -51,6 +60,14 @@ uint64_t g_dispTick = 0;
 uint64_t g_emulationFreq = 500;
 uint64_t g_emulTick = 0;
 bool g_runEmul = true;
+
+
+bool g_displayBuffer[64][32];
+bool getPixel(uint8_t x, uint8_t y) { return g_displayBuffer[x % 64][y % 32]; }
+void togglePixel(uint8_t x, uint8_t y) {
+    g_displayBuffer[x % 64][y % 32] = !g_displayBuffer[x % 64][y % 32];
+}
+void clearDisplay() { memset(g_displayBuffer, 0, sizeof(g_displayBuffer)); }
 
 
 SDL_AppResult SDL_AppInit(void** pp_appstate, int argc, char* p_argv[]) {
@@ -94,7 +111,8 @@ SDL_AppResult SDL_AppInit(void** pp_appstate, int argc, char* p_argv[]) {
     SDL_RenderPresent(gp_renderer);
 
 
-    *pp_appstate = core_init();
+    *pp_appstate =
+        core_init(NULL, &heldKeys, &getPixel, &togglePixel, &clearDisplay);
     MachineState* p_machineState = *pp_appstate;
 
     // Load program ROM
@@ -152,16 +170,6 @@ SDL_AppResult SDL_AppEvent(void*, SDL_Event* event) {
 }
 
 
-uint16_t heldKeys() {
-    uint16_t heldKeys = 0;
-
-    for (int i = 0; i < 16; i++)
-        if (g_keyRepeat[i] > 0) heldKeys |= 0b1 << i;
-
-    return heldKeys;
-}
-
-
 SDL_AppResult SDL_AppIterate(void* p_appstate) {
     MachineState* p_machineState = p_appstate;
 
@@ -184,7 +192,7 @@ SDL_AppResult SDL_AppIterate(void* p_appstate) {
 
         g_emulTick = currentTicks;
 
-        updateDisp = core_tick(p_machineState, &heldKeys);
+        updateDisp = core_tick(p_machineState);
     };
 
     // Tick the delay and sound timers at 60 Hz
@@ -229,8 +237,7 @@ SDL_AppResult SDL_AppIterate(void* p_appstate) {
                                SDL_ALPHA_OPAQUE);
         for (int y = 0; y < 32; y++)
             for (int x = 0; x < 64; x++)
-                if (p_machineState->dispBuf[x][y])
-                    SDL_RenderPoint(gp_renderer, x, y);
+                if (g_displayBuffer[x][y]) SDL_RenderPoint(gp_renderer, x, y);
 
         // Present the screen
         SDL_RenderPresent(gp_renderer);
