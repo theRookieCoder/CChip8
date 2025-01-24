@@ -1,12 +1,13 @@
 #include "core.h"
 
-#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 
+// Squeeze the font into the space just before the program
+#define FONT_ADDR 0x0200 - 16 * 5
 const uint8_t DEFAULT_FONT[16 * 5] = {
     // 0
     0b11110000,
@@ -133,32 +134,21 @@ uint16_t pop(MachineState* p_machineState) {
 }
 
 
-MachineState* core_init(const uint8_t p_font[16 * 5],
-                        uint16_t (*heldKeys)(),
-                        bool (*getPixel)(uint8_t x, uint8_t y),
-                        void (*togglePixel)(uint8_t x, uint8_t y),
-                        void (*clearDisplay)()) {
-    static MachineState machineState = {.programCounter = 0x0200};
-    machineState.heldKeys = heldKeys;
-    machineState.getPixel = getPixel;
-    machineState.togglePixel = togglePixel;
-    machineState.clearDisplay = clearDisplay;
+void core_init(MachineState* p_machineState,
+               const uint8_t p_font[16 * 5],
+               uint16_t (*heldKeys)(),
+               bool (*getPixel)(uint8_t x, uint8_t y),
+               void (*togglePixel)(uint8_t x, uint8_t y),
+               void (*clearDisplay)()) {
+    p_machineState->programCounter = 0x0200;
+    p_machineState->heldKeys = heldKeys;
+    p_machineState->getPixel = getPixel;
+    p_machineState->togglePixel = togglePixel;
+    p_machineState->clearDisplay = clearDisplay;
 
-    memcpy(&machineState.ram[0x0050],
+    memcpy(&p_machineState->ram[FONT_ADDR],
            (p_font != NULL) ? p_font : DEFAULT_FONT,
            16 * 5);
-
-    return &machineState;
-}
-
-void core_loadROMfile(MachineState* p_machineState, FILE* romFile) {
-    int read = fread(&p_machineState->ram[0x0200],
-                     sizeof(*(p_machineState->ram)),
-                     sizeof(p_machineState->ram) - 0x0200,
-                     romFile);
-#if DEBUG
-    printf("Loaded %i bytes into machine state's RAM.\n", read);
-#endif
 }
 
 #define V0 p_machineState->varRegs[0x0]
@@ -188,8 +178,10 @@ void core_timerTick(MachineState* p_machineState) {
 bool core_tick(MachineState* p_machineState) {
     /* FETCH */
     uint16_t instruction =
-        (p_machineState->ram[p_machineState->programCounter] << 8) +
-        p_machineState->ram[p_machineState->programCounter + 1];
+        (p_machineState->ram[p_machineState->programCounter % CORE_RAM_SIZE]
+         << 8) +
+        p_machineState
+            ->ram[(p_machineState->programCounter + 1) % CORE_RAM_SIZE];
     p_machineState->programCounter += 2;
 
 
@@ -373,7 +365,8 @@ bool core_tick(MachineState* p_machineState) {
             for (int i = 0; i < N; i++) {
                 int x = start_x;
                 uint8_t nthSpriteRow =
-                    p_machineState->ram[p_machineState->indexReg + i];
+                    p_machineState
+                        ->ram[(p_machineState->indexReg + i) % CORE_RAM_SIZE];
                 for (int j = 7; j >= 0; j--) {
                     bool bit = (nthSpriteRow & (1 << j)) >> j;
                     if (bit) {
@@ -440,28 +433,33 @@ bool core_tick(MachineState* p_machineState) {
                     break;
 
                 case 0x29:
-                    p_machineState->indexReg = 0x50 + (VX & 0xF) * 5;
+                    p_machineState->indexReg = FONT_ADDR + (VX & 0xF) * 5;
                     break;
 
                 case 0x33:
-                    p_machineState->ram[p_machineState->indexReg + 2] =
+                    p_machineState
+                        ->ram[(p_machineState->indexReg + 2) % CORE_RAM_SIZE] =
                         (VX / 1) % 10;
-                    p_machineState->ram[p_machineState->indexReg + 1] =
+                    p_machineState
+                        ->ram[(p_machineState->indexReg + 1) % CORE_RAM_SIZE] =
                         (VX / 10) % 10;
-                    p_machineState->ram[p_machineState->indexReg + 0] =
+                    p_machineState
+                        ->ram[(p_machineState->indexReg + 0) % CORE_RAM_SIZE] =
                         (VX / 100) % 10;
                     break;
 
                 case 0x55:
                     for (int i = 0; i <= X; i++)
-                        p_machineState->ram[p_machineState->indexReg++] =
+                        p_machineState
+                            ->ram[p_machineState->indexReg++ % CORE_RAM_SIZE] =
                             p_machineState->varRegs[i];
                     break;
 
                 case 0x65:
                     for (int i = 0; i <= X; i++)
                         p_machineState->varRegs[i] =
-                            p_machineState->ram[p_machineState->indexReg++];
+                            p_machineState->ram[p_machineState->indexReg++ %
+                                                CORE_RAM_SIZE];
                     break;
 #if DEBUG
                 default:

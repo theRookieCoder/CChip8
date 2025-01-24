@@ -111,9 +111,10 @@ SDL_AppResult SDL_AppInit(void** pp_appstate, int argc, char* p_argv[]) {
     SDL_RenderPresent(gp_renderer);
 
 
-    *pp_appstate =
-        core_init(NULL, &heldKeys, &getPixel, &togglePixel, &clearDisplay);
-    MachineState* p_machineState = *pp_appstate;
+    static MachineState machineState = {};
+    *pp_appstate = &machineState;
+    core_init(
+        &machineState, NULL, &heldKeys, &getPixel, &togglePixel, &clearDisplay);
 
     // Load program ROM
     FILE* romFile = fopen(p_argv[1], "rb");
@@ -121,7 +122,13 @@ SDL_AppResult SDL_AppInit(void** pp_appstate, int argc, char* p_argv[]) {
         SDL_Log("ROM file could not be opened");
         return SDL_APP_FAILURE;
     }
-    core_loadROMfile(p_machineState, romFile);
+    int read = fread(&machineState.ram[0x0200],
+                     sizeof(*(machineState.ram)),
+                     sizeof(machineState.ram) - 0x0200,
+                     romFile);
+#if DEBUG
+    printf("Loaded %i bytes into machine state's RAM.\n", read);
+#endif
     fclose(romFile);
 
 
@@ -130,7 +137,7 @@ SDL_AppResult SDL_AppInit(void** pp_appstate, int argc, char* p_argv[]) {
     printf("ADDR: DATA");
     for (int i = 0; i < 0x1000; i++) {
         if (i % 16 == 0) printf("\n%04X: ", i);
-        printf("0x%02X ", p_machineState->ram[i]);
+        printf("0x%02X ", machineState.ram[i]);
     }
     printf("\n\n");
 #endif
