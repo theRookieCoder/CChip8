@@ -9,12 +9,12 @@
  * Holds the state of the emulated machine
  */
 typedef struct MachineState {
-#ifndef CORE_RAM_SIZE
-#define CORE_RAM_SIZE 4096
-#endif
     /// The emulated RAM.
     /// Its size can be controlled using the `CORE_RAM_SIZE` macro, which
     /// defaults to `4096`.
+#ifndef CORE_RAM_SIZE
+#define CORE_RAM_SIZE 4096
+#endif
     uint8_t ram[CORE_RAM_SIZE];
 
     /// Address to load the next instruction from
@@ -93,7 +93,7 @@ MachineState* core_init(const uint8_t p_font[16 * 5],
  * @param p_machineState    The machine state to load the ROM into
  * @param romFile           The ROM file to load
  */
-void core_loadROM(MachineState* p_machineState, FILE* romFile);
+void core_loadROMfile(MachineState* p_machineState, FILE* romFile);
 
 /**
  * Tick `p_machineState`'s delay and sound timers.

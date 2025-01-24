@@ -151,7 +151,7 @@ MachineState* core_init(const uint8_t p_font[16 * 5],
     return &machineState;
 }
 
-void core_loadROM(MachineState* p_machineState, FILE* romFile) {
+void core_loadROMfile(MachineState* p_machineState, FILE* romFile) {
     int read = fread(&p_machineState->ram[0x0200],
                      sizeof(*(p_machineState->ram)),
                      sizeof(p_machineState->ram) - 0x0200,

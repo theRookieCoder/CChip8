@@ -121,7 +121,7 @@ SDL_AppResult SDL_AppInit(void** pp_appstate, int argc, char* p_argv[]) {
         SDL_Log("ROM file could not be opened");
         return SDL_APP_FAILURE;
     }
-    core_loadROM(p_machineState, romFile);
+    core_loadROMfile(p_machineState, romFile);
     fclose(romFile);
 
 
