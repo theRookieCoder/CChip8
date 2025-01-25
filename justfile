@@ -1,16 +1,21 @@
+#!/usr/bin/env just --justfile
+
 default: build
 
-run rom debug="true" +others="": (build debug others)
-    ./cchip8 "ROMs/{{rom}}.ch8"
+# Compile and run `rom` on CChip8
+run rom debug="true": (build debug)
+    ./cchip8 {{ rom }}
 
-build debug="true" +others="":
-    clang {{others}} \
+# Compile CChip8
+build debug="true":
+    clang \
         -std=c23 \
         -march=native \
         -fuse-ld=mold \
         -Wextra \
         $(pkg-config sdl3 --cflags --libs) \
-        {{ if debug == "true" { "-g3 -O0 -DDEBUG=true" } else { "-O3 -UDEBUG" } }} \
-        src/*.c \
-        -o cchip8
+        -DDEBUG={{ debug }} \
+        {{ if debug == "true" { "-g3 -O0" } else { "-O3" } }} \
+        -o cchip8 \
+        src/*.c
     chmod +x ./cchip8
