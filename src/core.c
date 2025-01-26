@@ -176,6 +176,8 @@ void core_timerTick(MachineState* p_machineState) {
     if (p_machineState->soundTimer > 0) p_machineState->soundTimer--;
 }
 
+uint16_t g_previousHeldKeys = 0;
+
 bool core_tick(MachineState* p_machineState) {
     /* FETCH */
     uint16_t instruction =
@@ -419,14 +421,25 @@ bool core_tick(MachineState* p_machineState) {
                     p_machineState->indexReg += VX;
                     break;
 
-                case 0x0A:
-                    if (p_machineState->heldKeys() == 0)
-                        p_machineState->programCounter -= 2;
-                    else
+                case 0x0A: {
+                    uint16_t currentHeldKeys = p_machineState->heldKeys();
+
+                    if (currentHeldKeys < g_previousHeldKeys) {
+                        uint16_t keysDiff =
+                            g_previousHeldKeys - currentHeldKeys;
                         for (int i = 0; i < 16; i++)
-                            if (p_machineState->heldKeys() >> i & 0b1) VX = i;
+                            if (keysDiff >> i & 0b1) {
+                                VX = i;
+                                break;
+                            };
+                        g_previousHeldKeys = 0;
+                    } else {
+                        g_previousHeldKeys = currentHeldKeys;
+                        p_machineState->programCounter -= 2;
+                    }
 
                     break;
+                }
 
                 case 0x29:
                     p_machineState->indexReg = FONT_ADDR + (VX & 0xF) * 5;
