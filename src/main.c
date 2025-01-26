@@ -75,6 +75,9 @@ void togglePixel(uint8_t x, uint8_t y) {
 void clearDisplay() { memset(g_displayBuffer, 0, sizeof(g_displayBuffer)); }
 
 
+void sigIllHandler() {}
+
+
 SDL_AppResult SDL_AppInit(void** pp_appstate, int argc, char* p_argv[]) {
     printf("%s version %s\n\n", PROG_NAME, VERSION);
     SDL_SetAppMetadata(APP_NAME, VERSION, "io.github.theRookieCoder.CChip8");
@@ -124,7 +127,8 @@ SDL_AppResult SDL_AppInit(void** pp_appstate, int argc, char* p_argv[]) {
               &heldKeys,
               &getPixel,
               &togglePixel,
-              &clearDisplay);
+              &clearDisplay,
+              &sigIllHandler);
 
     // Load program ROM
     FILE* romFile = fopen(p_argv[1], "rb");

@@ -62,6 +62,9 @@ typedef struct MachineState {
 
     /// Clears the display to off
     void (*clearDisplay)();
+
+    /// Handles an illegal instruction
+    void (*sigIllHandler)();
 } MachineState;
 
 /**
@@ -80,7 +83,8 @@ void core_init(MachineState* p_machineState,
                uint16_t (*heldKeys)(),
                bool (*getPixel)(uint8_t x, uint8_t y),
                void (*togglePixel)(uint8_t x, uint8_t y),
-               void (*clearDisplay)());
+               void (*clearDisplay)(),
+               void (*sigIllHandler)());
 
 /**
  * Ticks `p_machineState`'s delay and sound timers.

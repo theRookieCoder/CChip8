@@ -126,7 +126,9 @@ const uint8_t DEFAULT_FONT[16 * 5] = {
 
 
 void push(MachineState* p_machineState, uint16_t val) {
+#if DEBUG
     if (p_machineState->stackIdx > 16) printf("Stack overflow!\n");
+#endif
 
     p_machineState->stack[(p_machineState->stackIdx)++ % 16] = val;
 }
@@ -142,12 +144,14 @@ void core_init(MachineState* p_machineState,
                uint16_t (*heldKeys)(),
                bool (*getPixel)(uint8_t x, uint8_t y),
                void (*togglePixel)(uint8_t x, uint8_t y),
-               void (*clearDisplay)()) {
+               void (*clearDisplay)(),
+               void (*sigIllHandler)()) {
     p_machineState->programCounter = 0x0200;
     p_machineState->heldKeys = heldKeys;
     p_machineState->getPixel = getPixel;
     p_machineState->togglePixel = togglePixel;
     p_machineState->clearDisplay = clearDisplay;
+    p_machineState->sigIllHandler = sigIllHandler;
 
     if (fontCopy == NULL) fontCopy = &memcpy;
     fontCopy(&p_machineState->ram[FONT_ADDR],
@@ -233,18 +237,20 @@ bool core_tick(MachineState* p_machineState) {
                             p_machineState->programCounter =
                                 pop(p_machineState);
                             break;
-#if DEBUG
                         default:
+#if DEBUG
                             printf("Instruction not implemented\n");
 #endif
+                            p_machineState->sigIllHandler();
                     }
 
                     break;
                 }
-#if DEBUG
                 default:
+#if DEBUG
                     printf("Instruction not implemented\n");
 #endif
+                    p_machineState->sigIllHandler();
             }
 
             break;
@@ -330,10 +336,11 @@ bool core_tick(MachineState* p_machineState) {
                     VF = shiftedOut;
                     break;
                 }
-#if DEBUG
                 default:
+#if DEBUG
                     printf("Instruction not implemented\n");
 #endif
+                    p_machineState->sigIllHandler();
             }
 
             break;
@@ -397,10 +404,11 @@ bool core_tick(MachineState* p_machineState) {
                     if (!((p_machineState->heldKeys() >> (VX & 0xF)) & 0b1))
                         p_machineState->programCounter += 2;
                     break;
-#if DEBUG
                 default:
+#if DEBUG
                     printf("Instruction not implemented\n");
 #endif
+                    p_machineState->sigIllHandler();
             }
 
             break;
@@ -473,19 +481,21 @@ bool core_tick(MachineState* p_machineState) {
                             p_machineState->ram[p_machineState->indexReg++ %
                                                 CORE_RAM_SIZE];
                     break;
-#if DEBUG
                 default:
+#if DEBUG
                     printf("Instruction not implemented\n");
 #endif
+                    p_machineState->sigIllHandler();
             }
 
             break;
         }
 
-#if DEBUG
         default:
+#if DEBUG
             printf("Instruction not implemented\n");
 #endif
+            p_machineState->sigIllHandler();
     }
 
     return updateDisp;
