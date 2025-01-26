@@ -32,7 +32,7 @@ const SDL_Scancode KEYMAP[16] = {
 };
 
 // How long to buffer a key press in 60 Hz time periods (16.67 ms)
-#define KEY_BUFFER_DUR 5
+#define KEY_BUFFER_DUR 1
 
 // How many 60 Hz time periods a key has been held for
 uint64_t g_keyRepeat[16] = {};
@@ -42,8 +42,13 @@ bool g_keyReleased[16] = {};
 uint16_t heldKeys() {
     uint16_t heldKeys = 0;
 
-    for (int i = 0; i < 16; i++)
+    for (int i = 0; i < 16; i++) {
         if (g_keyRepeat[i] > 0) heldKeys |= 0b1 << i;
+        if (g_keyReleased[i]) {
+            g_keyRepeat[i] = 0;
+            g_keyReleased[i] = false;
+        }
+    }
 
     return heldKeys;
 }
@@ -166,7 +171,10 @@ SDL_AppResult SDL_AppEvent(void*, SDL_Event* event) {
 
     if (event->type == SDL_EVENT_KEY_DOWN)
         for (int i = 0; i < 16; i++)
-            if (event->key.scancode == KEYMAP[i]) g_keyRepeat[i]++;
+            if (event->key.scancode == KEYMAP[i]) {
+                g_keyRepeat[i]++;
+                g_keyReleased[i] = false;
+            }
 
     if (event->type == SDL_EVENT_KEY_UP)
         for (int i = 0; i < 16; i++)
@@ -193,7 +201,11 @@ SDL_AppResult SDL_AppIterate(void* p_appstate) {
         printf("Emulation frequency  : %lu Hz\n", g_emulationFreq);
         printf("Emulation time period: %g ms\n",
                ((double)currentTicks - g_emulTick) / 1000000);
-        printf("Held keys: %016B\n", heldKeys());
+
+        uint16_t held = 0;
+        for (int i = 0; i < 16; i++)
+            if (g_keyRepeat[i]) held |= 0b1 << i;
+        printf("Held keys: %016B\n", held);
         printf("           FEDCBA9876543210\n\n");
 #endif
 
@@ -209,11 +221,10 @@ SDL_AppResult SDL_AppIterate(void* p_appstate) {
         core_timerTick(p_machineState);
 
         for (int i = 0; i < 16; i++) {
-            // If the key has been released and it has exceeded the buffer
-            // duration
+            // If the key has been released and exceeded the buffer duration
             if (g_keyRepeat[i] > KEY_BUFFER_DUR && g_keyReleased[i]) {
-                g_keyReleased[i] = false;
                 g_keyRepeat[i] = 0;
+                g_keyReleased[i] = false;
             }
             if (g_keyRepeat[i] > 0) g_keyRepeat[i]++;
         }
@@ -255,7 +266,7 @@ SDL_AppResult SDL_AppIterate(void* p_appstate) {
 
 void SDL_AppQuit(void*, SDL_AppResult result) {
 #if DEBUG
-    // Some buffer time to have a look at the display
+    // Some buffer time to have a look at the display if something goes wrong
     if (result == SDL_APP_FAILURE) SDL_Delay(3000);
 #endif
 }

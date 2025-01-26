@@ -4,7 +4,7 @@ default: build
 
 # Compile and run `rom` on CChip8
 run rom debug="true": (build debug)
-    ./cchip8 {{ rom }}
+    ./cchip8 '{{ rom }}'
 
 # Compile CChip8
 build debug="true":

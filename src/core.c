@@ -193,9 +193,9 @@ bool core_tick(MachineState* p_machineState) {
 #define NN (instruction & 0x00FF)
 #define NNN (instruction & 0x0FFF)
 
-// Display machine state
 #if DEBUG
-    printf("\nPC: 0x%04X\n", p_machineState->programCounter - 2);
+    // Display machine state
+    printf("PC: 0x%04X\n", p_machineState->programCounter - 2);
     printf("Instruction: %04X\n", instruction);
     printf("Stack: ");
     for (int i = 0; i < p_machineState->stackIdx; i++)
@@ -292,26 +292,23 @@ bool core_tick(MachineState* p_machineState) {
                     break;
 
                 case 0x4: {
-                    uint64_t vx = VX;
-                    uint64_t vy = VY;
-                    VX = vx + vy;
-                    VF = (vx + vy > 0xFF) ? 1 : 0;
+                    uint8_t overflowFlag = (VX + VY > 0xFF) ? 1 : 0;
+                    VX = VX + VY;
+                    VF = overflowFlag;
                     break;
                 }
 
                 case 0x5: {
-                    uint64_t vx = VX;
-                    uint64_t vy = VY;
-                    VX = vx - vy;
-                    VF = (vx >= vy) ? 1 : 0;
+                    uint8_t carryFlag = VX >= VY ? 1 : 0;
+                    VX = VX - VY;
+                    VF = carryFlag;
                     break;
                 }
 
                 case 0x7: {
-                    uint64_t vx = VX;
-                    uint64_t vy = VY;
-                    VX = vy - vx;
-                    VF = (vy >= vx) ? 1 : 0;
+                    uint8_t carryFlag = VY >= VX ? 1 : 0;
+                    VX = VY - VX;
+                    VF = carryFlag;
                     break;
                 }
 
@@ -387,12 +384,12 @@ bool core_tick(MachineState* p_machineState) {
         case 0xE: {
             switch (NN) {
                 case 0x9E:
-                    if ((p_machineState->heldKeys() >> VX) & 0b1)
+                    if ((p_machineState->heldKeys() >> (VX & 0xF)) & 0b1)
                         p_machineState->programCounter += 2;
                     break;
 
                 case 0xA1:
-                    if (!((p_machineState->heldKeys() >> VX) & 0b1))
+                    if (!((p_machineState->heldKeys() >> (VX & 0xF)) & 0b1))
                         p_machineState->programCounter += 2;
                     break;
 #if DEBUG
@@ -420,8 +417,6 @@ bool core_tick(MachineState* p_machineState) {
 
                 case 0x1E:
                     p_machineState->indexReg += VX;
-                    if (p_machineState->indexReg > 0x1000)
-                        VF = 1;  // Amiga specific behaviour
                     break;
 
                 case 0x0A:

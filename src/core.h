@@ -5,12 +5,12 @@
 
 /// Holds the state of the emulated machine
 typedef struct MachineState {
-    /// The emulated RAM.
-    /// Its size can be controlled using the `CORE_RAM_SIZE` macro, which
-    /// defaults to `4096`.
 #ifndef CORE_RAM_SIZE
 #define CORE_RAM_SIZE 4096
 #endif
+    /// The emulated RAM.
+    /// Its size can be controlled using the `CORE_RAM_SIZE` macro, which
+    /// defaults to `4096`.
     uint8_t ram[CORE_RAM_SIZE];
 
     uint16_t programCounter;
@@ -19,6 +19,7 @@ typedef struct MachineState {
 
     /// Stores return addresses when jumping to subroutines
     uint16_t stack[16];
+
     /// The number of addresses stored on the stack
     uint8_t stackIdx;
 
