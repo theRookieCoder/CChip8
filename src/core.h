@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 /// Holds the state of the emulated machine
@@ -66,16 +67,16 @@ typedef struct MachineState {
 /**
  * Initialises the machine state at `p_machineState`.
  *
- * The font is loaded into RAM at `0x01B0` from `p_font`. A default font is
- * loaded if `p_font` is `NULL`.
- *
  * @param p_machineState    The machine state to initialise
- * @param p_font            The font to load
+ * @param p_font            The font to load, uses a default font if NULL
+ * @param fontCopy          The function to use to copy the font, uses `memcpy`
+ *                          if NULL
  *
  * @see `MachineState` for documentation about the callbacks
  */
 void core_init(MachineState* p_machineState,
                const uint8_t p_font[16 * 5],
+               void*(fontCopy)(void* dest, const void* src, size_t count),
                uint16_t (*heldKeys)(),
                bool (*getPixel)(uint8_t x, uint8_t y),
                void (*togglePixel)(uint8_t x, uint8_t y),

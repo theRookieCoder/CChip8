@@ -118,8 +118,13 @@ SDL_AppResult SDL_AppInit(void** pp_appstate, int argc, char* p_argv[]) {
 
     static MachineState machineState = {};
     *pp_appstate = &machineState;
-    core_init(
-        &machineState, NULL, &heldKeys, &getPixel, &togglePixel, &clearDisplay);
+    core_init(&machineState,
+              NULL,
+              NULL,
+              &heldKeys,
+              &getPixel,
+              &togglePixel,
+              &clearDisplay);
 
     // Load program ROM
     FILE* romFile = fopen(p_argv[1], "rb");

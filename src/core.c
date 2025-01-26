@@ -1,6 +1,7 @@
 #include "core.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -137,6 +138,7 @@ uint16_t pop(MachineState* p_machineState) {
 
 void core_init(MachineState* p_machineState,
                const uint8_t p_font[16 * 5],
+               void*(fontCopy)(void* dest, const void* src, size_t count),
                uint16_t (*heldKeys)(),
                bool (*getPixel)(uint8_t x, uint8_t y),
                void (*togglePixel)(uint8_t x, uint8_t y),
@@ -147,9 +149,10 @@ void core_init(MachineState* p_machineState,
     p_machineState->togglePixel = togglePixel;
     p_machineState->clearDisplay = clearDisplay;
 
-    memcpy(&p_machineState->ram[FONT_ADDR],
-           (p_font != NULL) ? p_font : DEFAULT_FONT,
-           16 * 5);
+    if (fontCopy == NULL) fontCopy = &memcpy;
+    fontCopy(&p_machineState->ram[FONT_ADDR],
+             (p_font != NULL) ? p_font : DEFAULT_FONT,
+             16 * 5);
 }
 
 #define V0 p_machineState->varRegs[0x0]
