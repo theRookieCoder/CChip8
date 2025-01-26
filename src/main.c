@@ -59,7 +59,7 @@ static SDL_Renderer* gp_renderer = NULL;
 
 #define OFF_COLOUR 0x8f9185
 #define ON_COLOUR 0x111d2b
-bool g_windowResized = false;
+bool g_windowNeedsRedraw = false;
 uint64_t g_dispTick = 0;
 
 uint64_t g_emulationFreq = 500;
@@ -154,7 +154,9 @@ SDL_AppResult SDL_AppEvent(void*, SDL_Event* event) {
     if (event->type == SDL_EVENT_QUIT) return SDL_APP_SUCCESS;
 
 
-    if (event->type == SDL_EVENT_WINDOW_RESIZED) g_windowResized = true;
+    if (event->type >= SDL_EVENT_WINDOW_FIRST &&
+        event->type <= SDL_EVENT_WINDOW_LAST)
+        g_windowNeedsRedraw = true;
 
 
     if (event->type == SDL_EVENT_KEY_DOWN &&
@@ -188,7 +190,7 @@ SDL_AppResult SDL_AppEvent(void*, SDL_Event* event) {
 SDL_AppResult SDL_AppIterate(void* p_appstate) {
     MachineState* p_machineState = p_appstate;
 
-    bool updateDisp = g_windowResized;
+    bool emulUpdatedDisp = false;
     uint64_t currentTicks = SDL_GetTicksNS();
 
     /* CORE TICKING */
@@ -211,7 +213,7 @@ SDL_AppResult SDL_AppIterate(void* p_appstate) {
 
         g_emulTick = currentTicks;
 
-        updateDisp = core_tick(p_machineState);
+        emulUpdatedDisp = core_tick(p_machineState);
     };
 
     // Tick the delay and sound timers at 60 Hz
@@ -235,8 +237,8 @@ SDL_AppResult SDL_AppIterate(void* p_appstate) {
 
     // Update the display when the display buffer is updated or window is
     // resized
-    if (updateDisp) {
-        g_windowResized = false;
+    if (emulUpdatedDisp || g_windowNeedsRedraw) {
+        g_windowNeedsRedraw = false;
 
         // Clear the screen to the off colour
         SDL_SetRenderDrawColor(gp_renderer,
