@@ -221,8 +221,6 @@ bool core_tick(MachineState* p_machineState) {
 
 
     /* EXECUTE */
-    bool updateDisp = false;
-
     switch ((instruction & 0xF000) >> 12) {
         case 0x0: {
             switch (Y) {
@@ -230,144 +228,124 @@ bool core_tick(MachineState* p_machineState) {
                     switch (N) {
                         case 0x0:
                             p_machineState->clearDisplay();
-                            updateDisp = true;
-                            break;
+                            return true;
 
                         case 0xE:
                             p_machineState->programCounter =
                                 pop(p_machineState);
-                            break;
-                        default:
-#if DEBUG
-                            printf("Instruction not implemented\n");
-#endif
-                            p_machineState->sigIllHandler();
+                            return false;
                     }
-
                     break;
                 }
-                default:
-#if DEBUG
-                    printf("Instruction not implemented\n");
-#endif
-                    p_machineState->sigIllHandler();
             }
-
             break;
         }
 
         case 0x1:
             p_machineState->programCounter = NNN;
-            break;
+            return false;
 
         case 0x2:
             push(p_machineState, p_machineState->programCounter);
             p_machineState->programCounter = NNN;
-            break;
+            return false;
 
         case 0x3:
             if (VX == NN) p_machineState->programCounter += 2;
-            break;
+            return false;
 
         case 0x4:
             if (VX != NN) p_machineState->programCounter += 2;
-            break;
+            return false;
 
         case 0x5:
             if (VX == VY) p_machineState->programCounter += 2;
-            break;
+            return false;
 
         case 0x9:
             if (VX != VY) p_machineState->programCounter += 2;
-            break;
+            return false;
 
         case 0x8: {
             switch (N) {
                 case 0x0:
                     VX = VY;
-                    break;
+                    return false;
 
                 case 0x1:
                     VX |= VY;
                     VF = 0;
-                    break;
+                    return false;
 
                 case 0x2:
                     VX &= VY;
                     VF = 0;
-                    break;
+                    return false;
 
                 case 0x3:
                     VX ^= VY;
                     VF = 0;
-                    break;
+                    return false;
 
                 case 0x4: {
                     uint8_t overflowFlag = (VX + VY > 0xFF) ? 1 : 0;
                     VX = VX + VY;
                     VF = overflowFlag;
-                    break;
+                    return false;
                 }
 
                 case 0x5: {
                     uint8_t carryFlag = VX >= VY ? 1 : 0;
                     VX = VX - VY;
                     VF = carryFlag;
-                    break;
+                    return false;
                 }
 
                 case 0x7: {
                     uint8_t carryFlag = VY >= VX ? 1 : 0;
                     VX = VY - VX;
                     VF = carryFlag;
-                    break;
+                    return false;
                 }
 
                 case 0x6: {
                     bool shiftedOut = VY & 0b00000001;
                     VX = VY >> 1;
                     VF = shiftedOut;
-                    break;
+                    return false;
                 }
 
                 case 0xE: {
                     bool shiftedOut = (VY & 0b10000000) >> 7;
                     VX = VY << 1;
                     VF = shiftedOut;
-                    break;
+                    return false;
                 }
-                default:
-#if DEBUG
-                    printf("Instruction not implemented\n");
-#endif
-                    p_machineState->sigIllHandler();
             }
-
             break;
         }
 
         case 0x6:
             VX = NN;
-            break;
+            return false;
 
         case 0x7:
             VX += NN;
-            break;
+            return false;
 
         case 0xA:
             p_machineState->indexReg = NNN;
-            break;
+            return false;
 
         case 0xB:
             p_machineState->programCounter = NNN + V0;
-            break;
+            return false;
 
         case 0xC:
             VX = rand() & NN;
-            break;
+            return false;
 
         case 0xD: {
-            updateDisp = true;
             int start_x = VX % 64;
             int y = VY % 32;
             VF = 0;
@@ -390,7 +368,7 @@ bool core_tick(MachineState* p_machineState) {
                 if (y > 31) break;
             }
 
-            break;
+            return true;
         }
 
         case 0xE: {
@@ -398,19 +376,13 @@ bool core_tick(MachineState* p_machineState) {
                 case 0x9E:
                     if ((p_machineState->heldKeys() >> (VX & 0xF)) & 0b1)
                         p_machineState->programCounter += 2;
-                    break;
+                    return false;
 
                 case 0xA1:
                     if (!((p_machineState->heldKeys() >> (VX & 0xF)) & 0b1))
                         p_machineState->programCounter += 2;
-                    break;
-                default:
-#if DEBUG
-                    printf("Instruction not implemented\n");
-#endif
-                    p_machineState->sigIllHandler();
+                    return false;
             }
-
             break;
         }
 
@@ -418,19 +390,19 @@ bool core_tick(MachineState* p_machineState) {
             switch (NN) {
                 case 0x07:
                     VX = p_machineState->delayTimer;
-                    break;
+                    return false;
 
                 case 0x15:
                     p_machineState->delayTimer = VX;
-                    break;
+                    return false;
 
                 case 0x18:
                     p_machineState->soundTimer = VX;
-                    break;
+                    return false;
 
                 case 0x1E:
                     p_machineState->indexReg += VX;
-                    break;
+                    return false;
 
                 case 0x0A: {
                     uint16_t currentHeldKeys = p_machineState->heldKeys();
@@ -449,12 +421,12 @@ bool core_tick(MachineState* p_machineState) {
                         p_machineState->programCounter -= 2;
                     }
 
-                    break;
+                    return false;
                 }
 
                 case 0x29:
                     p_machineState->indexReg = FONT_ADDR + (VX & 0xF) * 5;
-                    break;
+                    return false;
 
                 case 0x33:
                     p_machineState
@@ -466,37 +438,30 @@ bool core_tick(MachineState* p_machineState) {
                     p_machineState
                         ->ram[(p_machineState->indexReg + 0) % CORE_RAM_SIZE] =
                         (VX / 100) % 10;
-                    break;
+                    return false;
 
                 case 0x55:
                     for (int i = 0; i <= X; i++)
                         p_machineState
                             ->ram[p_machineState->indexReg++ % CORE_RAM_SIZE] =
                             p_machineState->varRegs[i];
-                    break;
+                    return false;
 
                 case 0x65:
                     for (int i = 0; i <= X; i++)
                         p_machineState->varRegs[i] =
                             p_machineState->ram[p_machineState->indexReg++ %
                                                 CORE_RAM_SIZE];
-                    break;
-                default:
-#if DEBUG
-                    printf("Instruction not implemented\n");
-#endif
-                    p_machineState->sigIllHandler();
+                    return false;
             }
-
             break;
         }
-
-        default:
-#if DEBUG
-            printf("Instruction not implemented\n");
-#endif
-            p_machineState->sigIllHandler();
     }
 
-    return updateDisp;
+#if DEBUG
+    printf("Instruction not implemented\n");
+#endif
+    p_machineState->sigIllHandler();
+
+    return false;
 }
